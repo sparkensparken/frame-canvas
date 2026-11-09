@@ -9,7 +9,7 @@ RUN apt-get update \
 
 RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir \
-      "samsungtvws[async,encrypted]" icalendar recurring-ical-events
+      "samsungtvws[async,encrypted]==3.0.7" "icalendar==7.3.0" "recurring-ical-events==3.8.2"
 
 ENV FRAME_DATA=/data \
     PYTHONUNBUFFERED=1 \

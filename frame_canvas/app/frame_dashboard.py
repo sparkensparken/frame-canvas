@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -852,16 +854,41 @@ class TV:
             cid = art.upload(image.read_bytes(), file_type=image.suffix[1:], matte=matte, portrait_matte=matte)
             art.select_image(cid, show=True)
             old = [c for c in state["uploaded"] if c != cid]
-            keep = [cid]
-            if old:
-                try:
-                    art.delete_list(old)
-                except Exception as e:  # noqa: BLE001
-                    log.warning("Kunne ikke slette gamle bilder: %s", e)
-                    keep = old + [cid]
-            save_state({"uploaded": keep})
+            keep, fails = self._delete_each(art, old, state.get("fails", {}))
+            save_state({"uploaded": keep + [cid], "fails": fails})
             log.info("Viser %s", cid)
             return True
+
+    @staticmethod
+    def _delete_each(art, ids: list[str], fails: dict) -> tuple[list[str], dict]:
+        """Delete our old dashboard images one at a time, so one bad id can't block the rest.
+        Ids the TV keeps refusing (e.g. already gone) are dropped after 3 attempts."""
+        keep, new_fails = [], {}
+        for c in ids:
+            try:
+                art.delete(c)
+            except Exception as e:  # noqa: BLE001
+                n = int(fails.get(c, 0)) + 1
+                if n < 3:
+                    keep.append(c)
+                    new_fails[c] = n
+                else:
+                    log.info("Gir opp å slette %s etter %s forsøk: %s", c, n, e)
+        return keep, new_fails
+
+    def cleanup_uploads(self) -> dict:
+        """Delete every dashboard image this add-on has uploaded, except the one showing now."""
+        with self.lock:
+            art = self.art()
+            current = (art.get_current() or {}).get("content_id")
+            state = load_state()
+            tracked = set(state.get("uploaded", []))
+            # bilder i «Mine bilder» som følger tilleggets mønster og er eldre enn det som vises
+            ours = [a["content_id"] for a in art.available("MY-C0002") if a.get("content_id") in tracked]
+            targets = [c for c in ours if c != current]
+            keep, fails = self._delete_each(art, targets, {})
+            save_state({"uploaded": [c for c in [current] if c in tracked] + keep, "fails": fails})
+            return {"deleted": len(targets) - len(keep), "failed": len(keep)}
 
 
 class Radio:
@@ -1042,6 +1069,26 @@ class App:
         self.last_error: str | None = None
 
 
+MAX_BODY = 1_000_000
+TRUSTED_NETS = [ipaddress.ip_network(n) for n in ("127.0.0.0/8", "::1/128", "172.30.32.0/23")]
+_own_ips: set[str] = set()
+
+
+def is_trusted_client(ip: str) -> bool:
+    """Loopback, the Supervisor/ingress network, or this machine itself."""
+    try:
+        addr = ipaddress.ip_address(ip.split("%")[0])
+    except ValueError:
+        return False
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    if any(addr in n for n in TRUSTED_NETS if n.version == addr.version):
+        return True
+    if not _own_ips:
+        _own_ips.add(local_ip())
+    return str(addr) in _own_ips
+
+
 def make_handler(app: App):
     class Handler(SimpleHTTPRequestHandler):
         def log_message(self, *a):
@@ -1051,7 +1098,8 @@ def make_handler(app: App):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -1061,14 +1109,31 @@ def make_handler(app: App):
 
         def read_json(self) -> dict:
             n = int(self.headers.get("Content-Length") or 0)
+            if n > MAX_BODY:
+                raise ValueError("Forespørselen er for stor")
             return json.loads(self.rfile.read(n) or b"{}") if n else {}
 
+        def allowed(self, path: str) -> bool:
+            """Only Home Assistant itself (ingress panel, automations on 127.0.0.1) may use the API.
+            The radio stream is open so the TV can fetch it. Optional token for LAN access."""
+            if path.startswith("/stream/"):
+                return True
+            if is_trusted_client(self.client_address[0]):
+                return True
+            token = str(app.cfg.get("api_token") or "")
+            if token:
+                auth = self.headers.get("Authorization", "")
+                given = auth[7:] if auth.startswith("Bearer ") else self.headers.get("X-Frame-Token", "")
+                if hmac.compare_digest(given, token):
+                    return True
+            if not SUPERVISOR_TOKEN and app.cfg.get("allow_lan"):
+                return True  # utviklingsmodus utenfor Home Assistant
+            log.warning("Avviste %s %s fra %s (ikke Home Assistant)", self.command, path, self.client_address[0])
+            self.send_bytes(b"Forbidden - use the Frame Canvas panel in Home Assistant", "text/plain", 403)
+            return False
+
         def do_OPTIONS(self):
-            self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
-            self.end_headers()
+            self.send_bytes(b"", "text/plain", 405)
 
         def stream_radio(self, sid: str):
             st = next((s for s in app.radio.stations if s["id"] == sid), None)
@@ -1110,6 +1175,8 @@ def make_handler(app: App):
 
         def do_HEAD(self):
             path = urllib.parse.urlsplit(self.path).path
+            if not self.allowed(path):
+                return
             if path.startswith("/stream/"):
                 return self.stream_radio(path.rsplit("/", 1)[1].removesuffix(".mp3"))
             self.send_response(200)
@@ -1117,6 +1184,8 @@ def make_handler(app: App):
 
         def do_GET(self):
             path = urllib.parse.urlsplit(self.path).path
+            if not self.allowed(path):
+                return
             if path.startswith("/stream/"):
                 return self.stream_radio(path.rsplit("/", 1)[1].removesuffix(".mp3"))
             if path in ("/", "/index.html", "/dashboard"):
@@ -1161,6 +1230,8 @@ def make_handler(app: App):
 
         def do_POST(self):
             path = urllib.parse.urlsplit(self.path).path
+            if not self.allowed(path):
+                return
             try:
                 body = self.read_json()
                 if path == "/api/settings":
@@ -1199,6 +1270,10 @@ def make_handler(app: App):
                     threading.Thread(target=app.tv.refresh_status, daemon=True).start()
                     app.wakeup.set()
                     return self.send_json({"ok": True, "tv": tv})
+                if path == "/api/tv/cleanup":
+                    res = app.tv.cleanup_uploads()
+                    log.info("Opprydding: slettet %s gamle dashboard-bilder (%s feilet)", res["deleted"], res["failed"])
+                    return self.send_json({"ok": True, **res})
                 if path == "/api/radio":
                     sp = body.get("speaker")
                     if body.get("stop"):
@@ -1236,8 +1311,108 @@ def find_chrome() -> str:
     raise RuntimeError("Fant ikke Chrome/Chromium")
 
 
+class PersistentBrowser:
+    """One long-lived headless Chromium driven over the DevTools protocol.
+
+    Starting Chromium every minute is the most CPU-hungry thing the add-on does; keeping one
+    instance alive and just reloading the page + capturing a JPEG costs a fraction of that.
+    """
+
+    def __init__(self):
+        self.proc: subprocess.Popen | None = None
+        self.port = 9333
+        self.tmp = tempfile.mkdtemp(prefix="frame-chrome-")
+        self.lock = threading.Lock()
+
+    def _start(self) -> None:
+        extra = ["--no-sandbox", "--disable-dev-shm-usage"] if hasattr(os, "geteuid") and os.geteuid() == 0 else []
+        self.proc = subprocess.Popen(
+            [find_chrome(), "--headless=new", "--disable-gpu", "--hide-scrollbars", "--mute-audio", *extra,
+             "--no-first-run", "--disable-extensions", "--disable-background-networking",
+             "--disable-component-update", "--disable-sync", "--renderer-process-limit=1",
+             f"--user-data-dir={self.tmp}", "--force-device-scale-factor=1", "--window-size=3840,2160",
+             "--remote-debugging-address=127.0.0.1", f"--remote-debugging-port={self.port}", "about:blank"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(60):
+            try:
+                http_get(f"http://127.0.0.1:{self.port}/json/version", timeout=1)
+                return
+            except Exception:  # noqa: BLE001
+                time.sleep(0.25)
+        raise RuntimeError("Chromium startet ikke")
+
+    def _page_ws(self) -> str:
+        targets = json.loads(http_get(f"http://127.0.0.1:{self.port}/json/list", timeout=3))
+        pages = [t for t in targets if t.get("type") == "page"]
+        if not pages:
+            req = urllib.request.Request(f"http://127.0.0.1:{self.port}/json/new?about:blank", method="PUT")
+            pages = [json.loads(urllib.request.urlopen(req, timeout=3).read())]
+        return pages[0]["webSocketDebuggerUrl"]
+
+    def capture(self, url: str, timeout: float = 30) -> bytes:
+        import websocket
+        with self.lock:
+            if self.proc is None or self.proc.poll() is not None:
+                self._start()
+            ws = websocket.create_connection(self._page_ws(), timeout=timeout, suppress_origin=True)
+            try:
+                seq = [0]
+
+                def call(method, **params):
+                    seq[0] += 1
+                    ws.send(json.dumps({"id": seq[0], "method": method, "params": params}))
+                    while True:
+                        msg = json.loads(ws.recv())
+                        if msg.get("id") == seq[0]:
+                            if "error" in msg:
+                                raise RuntimeError(f"{method}: {msg['error']}")
+                            return msg.get("result", {})
+
+                call("Emulation.setDeviceMetricsOverride", width=3840, height=2160, deviceScaleFactor=1, mobile=False)
+                call("Page.navigate", url=url)
+                deadline = time.time() + timeout
+                while time.time() < deadline:  # vent til dashboardet har lastet data og bilder
+                    r = call("Runtime.evaluate", expression="document.body && document.body.dataset.ready", returnByValue=True)
+                    if r.get("result", {}).get("value") == "1":
+                        break
+                    time.sleep(0.2)
+                shot = call("Page.captureScreenshot", format="jpeg", quality=92, captureBeyondViewport=False)
+                call("Page.navigate", url="about:blank")  # slipp minnet fra den store siden
+                return base64.b64decode(shot["data"])
+            finally:
+                ws.close()
+
+    def stop(self) -> None:
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+
+
+_browser: PersistentBrowser | None = None
+
+
 def render(cfg: dict, out: Path) -> Path:
+    """Render the dashboard to a 4K JPEG – via the persistent browser, falling back to a one-off Chromium."""
+    global _browser
     url = f"http://127.0.0.1:{cfg.get('server_port', 8765)}/"
+    if out.suffix.lower() in (".jpg", ".jpeg") and not cfg.get("oneshot_browser"):
+        try:
+            if _browser is None:
+                _browser = PersistentBrowser()
+            data = _browser.capture(url)
+            if data.startswith(b"\xff\xd8"):
+                tmp_out = out.with_name(out.stem + ".tmp" + out.suffix)
+                tmp_out.write_bytes(data)
+                tmp_out.replace(out)
+                return out
+        except Exception as e:  # noqa: BLE001
+            log.warning("Vedvarende nettleser feilet (%s) – bruker engangs-Chromium", e)
+            if _browser:
+                _browser.stop()
+            _browser = None
+    return render_oneshot(cfg, out, url)
+
+
+def render_oneshot(cfg: dict, out: Path, url: str) -> Path:
     with tempfile.TemporaryDirectory() as tmp:
         png = Path(tmp) / "shot.png"
         extra = ["--no-sandbox", "--disable-dev-shm-usage"] if hasattr(os, "geteuid") and os.geteuid() == 0 else []

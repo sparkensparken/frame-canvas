@@ -28,6 +28,12 @@ calendars, camera snapshots, a news ticker and background photography – refres
 | `only_when_art_mode` | Only push the dashboard while the TV is in Art Mode (recommended). |
 | `auto_ha_speakers` | List Home Assistant media players as radio speakers. |
 | `cameras` | Extra cameras outside Home Assistant: `name` + `snapshot_url` (JPEG) or `rtsp_url`. |
+| `api_token` | Optional. Lets other machines on your network use the API with `Authorization: Bearer <token>`. Without it, only Home Assistant can. |
+
+## Security & privacy
+
+The panel is protected by your Home Assistant login (ingress). The add-on's API only answers Home Assistant
+itself – other devices on your network get `403`. Set `api_token` if you need access from elsewhere.
 
 ## Privacy
 

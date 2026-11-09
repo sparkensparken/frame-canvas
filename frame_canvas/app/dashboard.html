@@ -237,7 +237,11 @@ async function load() {
       <span class="items">${news.items.map(esc).join("<i>•</i>")}</span>`;
   }
 }
-load();
+load().finally(() => {
+  const imgs = [...document.images].filter(i => !i.complete);
+  Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; })))
+    .then(() => document.fonts.ready).then(() => requestAnimationFrame(() => { document.body.dataset.ready = "1"; }));
+});
 </script>
 </body>
 </html>

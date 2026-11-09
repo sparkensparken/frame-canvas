@@ -54,12 +54,15 @@ so the TV's light sensor, matte display and power-saving behave exactly as Samsu
 | 📷 **Cameras** | Picks up your Home Assistant cameras automatically – up to four snapshots |
 | 📰 **News ticker** | Headlines from RSS feeds, slowly rotating like a ticker |
 | 🖼️ **Background art** | Modern photography (Unsplash), Bing's photo of the day (4K) or public-domain paintings from the Cleveland Museum of Art – only wide images that fill the screen |
-| 🎨 **Appearance** | Five themes, accent colours, two typefaces, thin/regular/bold weights, clock size |
+| 🎨 **Appearance** | Four symmetric layouts, five themes, accent colours, two typefaces, thin/regular/bold weights, clock size |
+| 👓 **Always readable** | Measures each background's brightness and dims bright photos automatically; optional frosted panels behind the text |
 | 🚶 **Presence control** | Use presence/motion sensors or your phone: TV on when you arrive, off when the room has been empty |
 | 📻 **Radio** | One-tap internet radio to your Home Assistant speakers (or the TV) |
 | 🔆 **TV settings** | Art Mode brightness, colour temperature, light sensor and motion timer from one place |
 | 🌍 **English & Norwegian** | Follows your Home Assistant language, or pick one |
 | 🛡️ **Gentle on the panel** | Subtle pixel shift every minute and rotating backgrounds |
+| 🪶 **Lightweight** | One long-lived headless browser renders each frame in well under a second – about 5× less CPU than launching a browser every minute |
+| 🔒 **Private by default** | The API only answers Home Assistant itself; nothing on your Wi‑Fi can read your cameras or control the TV |
 
 ## Gallery
 
@@ -115,7 +118,8 @@ That's it – the dashboard appears in Art Mode within a minute.
 ## How it works
 
 1. A small web server renders the dashboard page with your settings.
-2. Headless Chromium takes a 3840 × 2160 snapshot.
+2. A single, long-lived headless Chromium reloads the page and captures a 3840 × 2160 JPEG
+   over the DevTools protocol (falls back to a one-off browser if needed).
 3. The image is uploaded to The Frame's Art Mode over the local network and selected;
    the previous one is deleted, so nothing piles up on the TV.
 4. Nothing is pushed while the TV is in standby – so it never wakes the TV by accident.
@@ -123,9 +127,28 @@ That's it – the dashboard appears in Art Mode within a minute.
 Everything runs locally. The add-on only reaches out for weather, news, background images
 and the calendars you add.
 
+## Resource use
+
+Measured on the rendering step: about **0.6 s and ~2 s of CPU time per frame** with the persistent
+browser (vs ~3 s / ~10 s when launching Chromium every minute). On a Home Assistant Green that's a
+brief blip once a minute. Want even less? Set *Update the TV image every* to 2, 5 or 15 minutes –
+the clock then simply updates less often.
+
+## Security
+
+- The control panel is served through **Home Assistant ingress**, so it's protected by your HA login.
+- The add-on's port `8765` only answers **Home Assistant itself** (ingress and automations on
+  `127.0.0.1`). Other devices on your network get `403 Forbidden` – they can't read camera snapshots,
+  your calendars or control the TV. No CORS headers, so other websites can't reach it from your browser.
+- The only open endpoint is the radio stream the TV fetches.
+- Need the API from another machine? Set the `api_token` option and send
+  `Authorization: Bearer <token>`.
+- Calendar links (iCal secret addresses) are never returned by the API.
+- Dependencies are pinned; text from feeds and calendars is escaped before it's shown.
+
 ## Automations
 
-Frame Canvas exposes a small local API on port `8765`, so you can drive it from automations –
+Home Assistant can drive Frame Canvas through its local API on `http://127.0.0.1:8765` –
 for example a dimmer, minimal "night" look at 22:00:
 
 ```yaml

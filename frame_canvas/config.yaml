@@ -1,5 +1,5 @@
 name: Frame Canvas
-version: "1.0.2"
+version: "1.0.3"
 url: https://github.com/sparkensparken/frame-canvas
 slug: frame_canvas
 description: Turn Art Mode on a Samsung The Frame into a beautiful, living dashboard – clock, weather, calendars, cameras, news and photography
@@ -21,12 +21,14 @@ options:
   tv_mac: ""
   only_when_art_mode: true
   auto_ha_speakers: true
+  api_token: ""
   cameras: []
 schema:
   tv_ip: str?
   tv_mac: str?
   only_when_art_mode: bool
   auto_ha_speakers: bool
+  api_token: password?
   cameras:
     - name: str
       snapshot_url: str?

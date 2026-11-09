@@ -255,6 +255,8 @@
       <div class="row" style="margin-top:12px"><button class="btn primary" id="tvScan">Finn TV-er på nettet</button>
         <span class="muted" id="tvScanMsg"></span></div>
       <div id="tvFound" class="callist"></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="tvCleanup">Rydd opp gamle dashboard-bilder</button>
+        <span class="muted" id="tvCleanupMsg"></span></div>
       <details class="help"><summary>Finner den ikke TV-en?</summary>
         <p>TV-en må være på (eller i Art Mode) og på samme nettverk. Første gang må du godta tilkoblingen på TV-skjermen.</p>
         <div class="row" style="flex-wrap:nowrap;margin-top:8px"><input id="tvIp" type="search" placeholder="Skriv inn IP, f.eks. 192.168.1.50"><button class="btn" id="tvIpBtn">Bruk</button></div>
@@ -355,12 +357,14 @@ const EN = {
   "Lagret": "Saved", "Lagret – TV-en oppdateres om litt": "Saved – the TV updates shortly", "Kunne ikke lagre": "Couldn’t save",
   "Sendt til TV-en": "Sent to the TV", "Sender til TV-en …": "Sending to the TV …", "Feil": "Error",
   "Språk": "Language", "Automatisk": "Automatic",
+  "Rydd opp gamle dashboard-bilder": "Clean up old dashboard images", "Rydder …": "Cleaning up …", "feilet": "failed",
+  "Slette alle gamle dashboard-bilder dette tillegget har lastet opp til TV-en? Bildet som vises nå beholdes. Dine egne bilder røres ikke.": "Delete all old dashboard images this add-on has uploaded to the TV? The image showing now is kept. Your own photos are not touched.",
   "Minste demping av bildet (lyse bilder dempes mer automatisk)": "Minimum image dimming (bright images are dimmed more automatically)",
   "Glassplate bak teksten": "Frosted panel behind text", "På (anbefalt)": "On (recommended)", "Av": "Off",
   "calendar.google.com på PC → ⚙️ Innstillinger → velg kalenderen til venstre → «Integrer kalender» → kopier": "calendar.google.com on a computer → ⚙️ Settings → pick the calendar on the left → “Integrate calendar” → copy the",
 };
 const EN_RX = [
-  [/^Sist sendt (.+)$/, "Last sent $1"], [/^Feil: (.+)$/, "Error: $1"], [/^Fant (\d+)$/, "Found $1"],
+  [/^Sist sendt (.+)$/, "Last sent $1"], [/^Slettet (\d+) bilder$/, "Deleted $1 images"], [/^Feil: (.+)$/, "Error: $1"], [/^Fant (\d+)$/, "Found $1"],
   [/^Spiller (.+)$/, "Playing $1"], [/^Valgte (.+) – godta tilkoblingen på TV-en hvis den spør$/, "Selected $1 – accept the connection on the TV if asked"],
   [/^✓ Fungerer – (\d+) avtaler de neste 30 dagene$/, "✓ Works – $1 events in the next 30 days"],
   [/^Rommet er tomt – sist sett (.+)\.$/, "The room is empty – last seen $1."],
@@ -462,7 +466,7 @@ function render() {
 
   const r = S.radio;
   const cur = $("speaker").value;
-  $("speaker").innerHTML = r.speakers.map(sp => `<option value="${sp.id}">${sp.name}</option>`).join("");
+  $("speaker").innerHTML = r.speakers.map(sp => `<option value="${escH(sp.id)}">${escH(sp.name)}</option>`).join("");
   if (cur) $("speaker").value = cur;
   const playing = r.playing[$("speaker").value];
   $("stations").innerHTML = r.stations.map(st => `<div class="station ${playing === st.id ? "playing" : ""}" data-station="${st.id}">${st.name}</div>`).join("");
@@ -560,6 +564,12 @@ $("tvScan").onclick = async () => {
       <button class="btn" data-pick="${escH(t.ip)}">${(S.tv_info || {}).ip === t.ip ? "Valgt" : "Velg"}</button></div>`).join("");
 };
 $("tvFound").addEventListener("click", e => { const b = e.target.closest("[data-pick]"); if (b) selectTv(b.dataset.pick); });
+$("tvCleanup").onclick = async () => {
+  if (!confirm(tr("Slette alle gamle dashboard-bilder dette tillegget har lastet opp til TV-en? Bildet som vises nå beholdes. Dine egne bilder røres ikke."))) return;
+  $("tvCleanupMsg").textContent = tr("Rydder …");
+  const r = await api("/api/tv/cleanup", {});
+  $("tvCleanupMsg").textContent = r.ok ? tr(`Slettet ${r.deleted} bilder`) + (r.failed ? ` (${r.failed} ${tr("feilet")})` : "") : (r.error || tr("Feil"));
+};
 $("tvIpBtn").onclick = () => $("tvIp").value.trim() && selectTv($("tvIp").value.trim());
 
 // ---------- tilstedeværelse
