@@ -73,8 +73,11 @@
                          grid-template-areas: "clock clock" "cal weather"; }
   body.l-sentrert.has-cams main { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "clock clock clock" "cal cams weather"; }
   body.l-sentrert .clock { align-self: center; justify-self: center; text-align: center; }
-  body.l-sentrert .weather { text-align: right; }
-  body.l-sentrert .weather .wnext { justify-content: flex-end; }
+  /* værplaten står midt i bunnraden: sentrer innholdet både vannrett og loddrett */
+  body.l-sentrert .weather { text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  body.l-sentrert .weather .wnext { justify-content: center; }
+  body.l-sentrert.has-cams .weather .temp { font-size: 240px; }
+  body.l-sentrert.has-cams .weather .wnext { gap: 50px; margin-top: 36px; }
 
   body.l-kamera main { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto minmax(0, 1fr);
                        grid-template-areas: "cams clock" "cams weather" "cams cal"; }

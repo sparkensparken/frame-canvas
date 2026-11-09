@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.4
+- Centered layout: the weather panel is now centered (temperature, description and forecast) instead of hugging the right edge.
+
 ## 1.0.3
 - Security: the API now only answers Home Assistant (ingress + 127.0.0.1); other devices on the network get 403.
   CORS removed, request size limit, optional `api_token` for LAN access, stricter escaping, pinned dependencies.
