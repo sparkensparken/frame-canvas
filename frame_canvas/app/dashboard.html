@@ -62,28 +62,37 @@
   .ticker .items i { color: var(--accent); font-style: normal; padding: 0 36px; }
   body.ticker-top .ticker { order: -1; border-top: 0; border-bottom: 3px solid var(--line); }
 
-  /* ---------- layouter ---------- */
-  body.l-klassisk main { grid-template-columns: 1.15fr 1fr; grid-template-rows: auto 1fr;
+  /* ---------- layouter (symmetriske rutenett: like kolonner, like høye rader) ---------- */
+  main { gap: 70px; }
+  body.l-klassisk main { grid-template-columns: 1fr 1fr; grid-template-rows: auto minmax(0, 1fr);
                          grid-template-areas: "clock weather" "cal cams"; }
-  body.l-klassisk .weather { justify-self: end; text-align: right; }
+  body.l-klassisk .weather { text-align: right; }
   body.l-klassisk .weather .wnext { justify-content: flex-end; }
 
-  body.l-sentrert main { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto;
+  body.l-sentrert main { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) 620px;
                          grid-template-areas: "clock clock" "cal weather"; }
-  body.l-sentrert .clock { align-self: center; text-align: center; }
-  body.l-sentrert .weather { justify-self: end; text-align: right; align-self: end; }
-  body.l-sentrert .weather .wnext { justify-content: flex-end; }
-  body.l-sentrert .cal { max-height: 700px; }
   body.l-sentrert.has-cams main { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "clock clock clock" "cal cams weather"; }
-  body.l-sentrert .cams { height: 640px; align-self: end; }
+  body.l-sentrert .clock { align-self: center; justify-self: center; text-align: center; }
+  body.l-sentrert .weather { text-align: right; }
+  body.l-sentrert .weather .wnext { justify-content: flex-end; }
 
-  body.l-kamera main { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto 1fr;
+  body.l-kamera main { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto minmax(0, 1fr);
                        grid-template-areas: "cams clock" "cams weather" "cams cal"; }
   body.l-kamera .weather .temp { font-size: 200px; }
+  /* smal høyrekolonne: mindre klokke så den får plass, og kalenderen får rom */
+  body.l-kamera.c-stor .time { font-size: 300px; letter-spacing: -6px; }
+  body.l-kamera.c-medium .time { font-size: 250px; letter-spacing: -5px; }
+  body.l-kamera.c-liten .time { font-size: 200px; letter-spacing: -4px; }
+  body.l-kamera .clock .date { font-size: 84px; } body.l-kamera .clock .sub { font-size: 50px; }
+  body.l-kamera .weather .wnext { gap: 50px; }
+  body.l-kamera main { gap: 50px; }
+  body.has-bg.panels.l-kamera .clock, body.has-bg.panels.l-kamera .weather, body.has-bg.panels.l-kamera .cal { padding: 34px 48px; }
+  body.l-kamera .weather .wnext { margin-top: 30px; }
 
   body.l-minimal main { grid-template-columns: 1fr; grid-template-areas: "clock"; place-items: center; }
   body.l-minimal .clock { text-align: center; }
   body.l-minimal .weather, body.l-minimal .cal, body.l-minimal .cams { display: none; }
+  .cams { gap: 50px; }
 
   .clock { grid-area: clock; } .weather { grid-area: weather; } .cal { grid-area: cal; } .cams { grid-area: cams; }
   /* ---------- skrifttykkelse ---------- */
@@ -106,9 +115,11 @@
     background: color-mix(in srgb, var(--bg) 42%, transparent);
     -webkit-backdrop-filter: blur(30px) saturate(1.15); backdrop-filter: blur(30px) saturate(1.15);
     border-radius: 44px; padding: 44px 60px; box-shadow: 0 10px 60px rgba(0,0,0,.18); }
-  body.has-bg.panels .clock { width: fit-content; }
-  body.has-bg.panels.l-sentrert .clock, body.has-bg.panels.l-minimal .clock { justify-self: center; }
-  body.has-bg.panels .weather { width: fit-content; }
+  /* platene fyller cellen sin, så platene på samme rad blir like store */
+  body.has-bg.panels .weather, body.has-bg.panels .cal, body.has-bg.panels.l-klassisk .clock,
+  body.has-bg.panels.l-kamera .clock { justify-self: stretch; align-self: stretch; min-width: 0; }
+  body.has-bg.panels.l-sentrert .clock, body.has-bg.panels.l-minimal .clock { width: fit-content; justify-self: center; padding: 50px 90px; }
+  body.has-bg.panels .cam { border-radius: 44px; }
   body.has-bg.panels .cal { -webkit-mask-image: none; mask-image: none; }
   body.has-bg.t-natt { --text: #ececec; --muted: #c4c4c4; --accent: #e0896d; }
   body.has-bg #credit { background: rgba(0,0,0,.45); color: #eee; padding: 6px 18px; border-radius: 12px; opacity: .85; }
