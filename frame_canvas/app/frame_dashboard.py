@@ -104,7 +104,7 @@ DEFAULT_SETTINGS = {
     "camera_ids": None,       # valgte kameraer (camera.xxx fra HA eller cfg:Navn) – None = alle fra config
     "tv": None,               # valgt TV {"ip","mac","name","model"} – overstyrer tv_ip i oppsettet
     # Bakgrunnsbilde: none | kunst | natur | bing
-    "background": {"source": "none", "interval_minutes": 30, "dim": 65, "offset": 0},
+    "background": {"source": "none", "interval_minutes": 30, "dim": 65, "offset": 0, "panels": "auto"},
     # Tilstedeværelse: slå TV-en på i Art Mode når noen er i rommet, av når rommet er tomt
     "presence": {"enabled": False, "entities": [], "off_minutes": 15, "turn_on": True, "turn_off": True},
 }
@@ -199,6 +199,8 @@ class Settings:
                 bg["dim"] = max(0, min(95, int(bg["dim"])))
             if "offset" in bg:
                 bg["offset"] = int(bg["offset"]) % 100000
+            if "panels" in bg and bg["panels"] not in ("auto", "on", "off"):
+                raise ValueError("panels må være auto, on eller off")
         if isinstance(patch.get("presence"), dict):
             pr = patch["presence"]
             if "entities" in pr:
@@ -584,6 +586,27 @@ def _bg_list(source: str) -> list[dict]:
     return items
 
 
+def image_brightness(raw: bytes) -> dict:
+    """Average luminance (0–255) of the whole image and of the busiest/brightest region, via ffmpeg."""
+    if not shutil.which("ffmpeg"):
+        return {"mean": 128, "max": 128}
+    try:
+        r = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-vf", "scale=16:9,format=gray",
+                            "-f", "rawvideo", "pipe:1"], input=raw, capture_output=True, timeout=30)
+        px = list(r.stdout)
+        if len(px) < 144:
+            return {"mean": 128, "max": 128}
+        # 3x3 blokker – den lyseste blokken avgjør, fordi tekst kan havne der
+        blocks = []
+        for by in range(3):
+            for bx in range(3):
+                vals = [px[y * 16 + x] for y in range(by * 3, by * 3 + 3) for x in range(bx * 5, min(16, bx * 5 + 6))]
+                blocks.append(sum(vals) / len(vals))
+        return {"mean": round(sum(px) / len(px)), "max": round(max(blocks))}
+    except Exception:  # noqa: BLE001
+        return {"mean": 128, "max": 128}
+
+
 def get_background(settings: dict) -> dict | None:
     bg = settings.get("background") or {}
     source = bg.get("source", "none")
@@ -606,12 +629,17 @@ def get_background(settings: dict) -> dict | None:
                                    input=raw, capture_output=True, timeout=60)
                 if r.returncode == 0 and r.stdout.startswith(b"\xff\xd8"):
                     raw = r.stdout
-            _bg_current.update(key=key, data=base64.b64encode(raw).decode(), credit=items[idx]["credit"])
-        return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55))}
+            _bg_current.update(key=key, data=base64.b64encode(raw).decode(), credit=items[idx]["credit"],
+                               brightness=image_brightness(raw))
+        return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55)),
+                "brightness": _bg_current.get("brightness") or {"mean": 128, "max": 128},
+                "panels": bg.get("panels", "auto")}
     except Exception as e:  # noqa: BLE001
         log.warning("Bakgrunnsbilde feilet: %s", e)
         if _bg_current["data"]:
-            return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55))}
+            return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55)),
+                    "brightness": _bg_current.get("brightness") or {"mean": 128, "max": 128},
+                    "panels": bg.get("panels", "auto")}
         return None
 
 

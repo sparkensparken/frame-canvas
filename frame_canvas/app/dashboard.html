@@ -101,6 +101,17 @@
   body.has-bg .clock, body.has-bg .weather, body.has-bg .cal, body.has-bg #credit { text-shadow: 0 2px 6px rgba(0,0,0,.55), 0 0 40px rgba(0,0,0,.45); }
   body.has-bg.t-lys .clock, body.has-bg.t-lys .weather, body.has-bg.t-lys .cal,
   body.has-bg.t-papir .clock, body.has-bg.t-papir .weather, body.has-bg.t-papir .cal { text-shadow: 0 0 30px rgba(255,255,255,.6); }
+  /* glassplater bak tekst når det er bakgrunnsbilde */
+  body.has-bg.panels .clock, body.has-bg.panels .weather, body.has-bg.panels .cal {
+    background: color-mix(in srgb, var(--bg) 42%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(1.15); backdrop-filter: blur(30px) saturate(1.15);
+    border-radius: 44px; padding: 44px 60px; box-shadow: 0 10px 60px rgba(0,0,0,.18); }
+  body.has-bg.panels .clock { width: fit-content; }
+  body.has-bg.panels.l-sentrert .clock, body.has-bg.panels.l-minimal .clock { justify-self: center; }
+  body.has-bg.panels .weather { width: fit-content; }
+  body.has-bg.panels .cal { -webkit-mask-image: none; mask-image: none; }
+  body.has-bg.t-natt { --text: #ececec; --muted: #c4c4c4; --accent: #e0896d; }
+  body.has-bg #credit { background: rgba(0,0,0,.45); color: #eee; padding: 6px 18px; border-radius: 12px; opacity: .85; }
   #credit { position: fixed; right: 60px; bottom: 220px; z-index: 1; font-size: 34px; color: var(--muted); opacity: .8; }
   body.ticker-top #credit, body:not(.has-ticker) #credit { bottom: 40px; }
   .hidden { display: none !important; }
@@ -162,7 +173,14 @@ async function load() {
   document.body.classList.toggle("has-bg", !!bg);
   if (bg) {
     $("bgimg").style.backgroundImage = `url(data:image/jpeg;base64,${bg.image})`;
-    $("bgdim").style.opacity = bg.dim / 100;
+    // Automatisk demping: lyse bilder dempes mer, så teksten alltid er lesbar
+    const light = ["lys", "papir"].includes(s.theme), b = (bg.brightness || {}).max ?? 128;
+    const panels = bg.panels !== "off";
+    // Med glassplater bærer platene lesbarheten – da kan bildet beholde mer lys og farge
+    const tDark = panels ? 140 : 72, tLight = panels ? 150 : 200;
+    const need = light ? Math.max(0, (tLight - b) / Math.max(1, 235 - b)) : Math.max(0, (b - tDark) / Math.max(1, b - 20));
+    $("bgdim").style.opacity = Math.min(0.92, Math.max(bg.dim / 100, need));
+    document.body.classList.toggle("panels", bg.panels !== "off");
     $("credit").textContent = bg.credit || "";
   }
   // Pikselforskyvning: flytt alt litt hvert minutt (skåner skjermen)
