@@ -2,7 +2,17 @@
 
 <h1 align="center">Frame Canvas</h1>
 
-**Turn Art Mode on your Samsung The Frame into a calm, beautiful, living dashboard.**
+<p align="center"><b>Turn Art Mode on your Samsung The Frame into a calm, beautiful, living dashboard.</b></p>
+
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsparkensparken%2Fframe-canvas"><img src="https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg" alt="Add repository to my Home Assistant"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/sparkensparken/frame-canvas/releases"><img src="https://img.shields.io/github/v/release/sparkensparken/frame-canvas?label=version" alt="Version"></a>
+  <img src="https://img.shields.io/badge/Home%20Assistant-add--on-41BDF5?logo=homeassistant&logoColor=white" alt="Home Assistant add-on">
+  <img src="https://img.shields.io/badge/arch-aarch64%20%7C%20amd64-555" alt="Architectures">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/sparkensparken/frame-canvas" alt="MIT license"></a>
+</p>
 
 Frame Canvas is a Home Assistant add-on that renders a 4K dashboard – clock, date, weather,
 your calendars, camera snapshots, a news ticker and gorgeous background photography – and
@@ -70,6 +80,10 @@ Everything is configured from a panel in the Home Assistant sidebar – with a l
 <p align="center"><img src="docs/images/control.png" alt="Frame Canvas control panel in Home Assistant" width="85%"></p>
 
 ## Installation
+
+**One click:** press the **Add repository** button at the top of this page, then skip to step 3.
+
+**Manually:**
 
 1. In Home Assistant, go to **Settings → Apps (Add-ons) → App store**.
 2. Open the **⋮** menu → **Repositories**, paste
