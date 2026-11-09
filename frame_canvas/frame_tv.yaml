@@ -1,0 +1,84 @@
+# Home Assistant-pakke for Frame Dashboard
+# Legg filen i /config/packages/frame_tv.yaml og sørg for at configuration.yaml har:
+#   homeassistant:
+#     packages: !include_dir_named packages
+# Tillegget lytter på port 8765 på Home Assistant-maskinen.
+
+rest:
+  - resource: http://127.0.0.1:8765/api/status
+    scan_interval: 30
+    sensor:
+      - name: "Frame status"
+        unique_id: frame_dashboard_status
+        icon: mdi:television-ambient-light
+        value_template: >-
+          {% if not value_json.tv.online %}av{% elif value_json.tv.art_mode %}art{% else %}tv{% endif %}
+        json_attributes_path: "$"
+        json_attributes: [settings, tv, last_push, radio]
+    binary_sensor:
+      - name: "Frame Art Mode"
+        unique_id: frame_dashboard_art_mode
+        value_template: "{{ value_json.tv.art_mode | default(false) }}"
+
+rest_command:
+  frame_settings:
+    url: http://127.0.0.1:8765/api/settings
+    method: POST
+    content_type: application/json
+    payload: "{{ settings | tojson }}"
+  frame_tv:
+    url: http://127.0.0.1:8765/api/tv
+    method: POST
+    content_type: application/json
+    payload: "{{ command | tojson }}"
+  frame_radio:
+    url: http://127.0.0.1:8765/api/radio
+    method: POST
+    content_type: application/json
+    payload: "{{ command | tojson }}"
+  frame_refresh:
+    url: http://127.0.0.1:8765/api/refresh
+    method: POST
+    content_type: application/json
+    payload: "{}"
+
+script:
+  frame_nattmodus:
+    alias: "Frame: nattmodus"
+    icon: mdi:weather-night
+    sequence:
+      - action: rest_command.frame_settings
+        data: { settings: { theme: natt, layout: minimal, show: { news: false } } }
+      - action: rest_command.frame_tv
+        data: { command: { brightness: 1 } }
+  frame_dagmodus:
+    alias: "Frame: dagmodus"
+    icon: mdi:white-balance-sunny
+    sequence:
+      - action: rest_command.frame_settings
+        data: { settings: { theme: mork, layout: klassisk, show: { news: true } } }
+      - action: rest_command.frame_tv
+        data: { command: { brightness: 5 } }
+  frame_art_mode:
+    alias: "Frame: Art Mode"
+    icon: mdi:image-frame
+    sequence:
+      - action: rest_command.frame_tv
+        data: { command: { art_mode: true } }
+  frame_nrk_p1:
+    alias: "Frame: NRK P1"
+    icon: mdi:radio
+    sequence:
+      - action: rest_command.frame_radio
+        data: { command: { station: p1, speaker: tv } }
+
+# Eksempel: nattmodus kl. 22, dagmodus kl. 07
+automation:
+  - alias: "Frame: nattmodus kl 22"
+    id: frame_night
+    triggers: [{ trigger: time, at: "22:00:00" }]
+    actions: [{ action: script.frame_nattmodus }]
+  - alias: "Frame: dagmodus kl 07"
+    id: frame_day
+    triggers: [{ trigger: time, at: "07:00:00" }]
+    actions: [{ action: script.frame_dagmodus }]

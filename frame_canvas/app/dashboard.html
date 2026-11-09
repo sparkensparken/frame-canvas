@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<title>Frame Dashboard</title>
+<style>
+  :root { --pad: 140px; }
+  /* ---------- temaer ---------- */
+  body.t-mork  { --bg:#14120f; --panel:#1d1a16; --line:#2e2a24; --text:#efe8dc; --muted:#9a9083; --accent:#e8b04b; }
+  body.t-lys   { --bg:#f3efe8; --panel:#e6e0d6; --line:#d6cec2; --text:#1f1b16; --muted:#7a7064; --accent:#b5651d; }
+  body.t-papir { --bg:#ebe3d3; --panel:#ded4c0; --line:#cfc3ac; --text:#2b2419; --muted:#7d705c; --accent:#8c3b2b; }
+  body.t-natt  { --bg:#000000; --panel:#0b0b0b; --line:#1a1a1a; --text:#8a8a8a; --muted:#4d4d4d; --accent:#7a3a2a; }
+  body.t-skog  { --bg:#0f1712; --panel:#17221b; --line:#243128; --text:#e3eadf; --muted:#8a9a8c; --accent:#9cc77a; }
+  body.f-serif { font-family: "Iowan Old Style", "Palatino", Georgia, serif; }
+  body.f-sans  { font-family: "Avenir Next", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 3840px; height: 2160px; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  main { flex: 1; min-height: 0; padding: var(--pad) 160px; display: grid; gap: 90px 110px; }
+
+  /* ---------- komponenter ---------- */
+  .clock .time { font-weight: 200; line-height: .9; font-variant-numeric: tabular-nums; }
+  .clock .date { font-weight: 400; margin-top: .45em; }
+  .clock .sub  { color: var(--muted); margin-top: .3em; }
+  .date::first-letter, .dayname::first-letter { text-transform: uppercase; }
+  body.c-stor   .time { font-size: 520px; letter-spacing: -12px; } body.c-stor .date { font-size: 120px; } body.c-stor .sub { font-size: 64px; }
+  body.c-medium .time { font-size: 380px; letter-spacing: -8px; }  body.c-medium .date { font-size: 100px; } body.c-medium .sub { font-size: 56px; }
+  body.c-liten  .time { font-size: 240px; letter-spacing: -4px; }  body.c-liten .date { font-size: 80px; }  body.c-liten .sub { font-size: 48px; }
+
+  .weather .temp { font-size: 300px; font-weight: 200; line-height: 1; }
+  .weather .wdesc { font-size: 72px; color: var(--muted); margin-top: 20px; }
+  .weather .wnext { display: flex; gap: 70px; margin-top: 50px; font-size: 54px; color: var(--muted); }
+  .weather .wnext b { display: block; color: var(--text); font-weight: 400; font-size: 70px; }
+
+  h2 { font-size: 52px; font-weight: 500; letter-spacing: 8px; text-transform: uppercase; color: var(--muted); margin-bottom: 40px; }
+  .cal { overflow: hidden; min-height: 0; -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%); mask-image: linear-gradient(to bottom, #000 82%, transparent 100%); }
+  .calhead { display: flex; align-items: baseline; gap: 50px; margin-bottom: 40px; flex-wrap: wrap; }
+  .calhead h2 { margin: 0; }
+  .legend { display: flex; gap: 40px; flex-wrap: wrap; font-size: 46px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 14px; }
+  .legend i { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
+  .day { margin-bottom: 44px; }
+  .dayname { font-size: 56px; color: var(--accent); margin-bottom: 14px; }
+  .ev { display: flex; gap: 40px; align-items: baseline; font-size: 64px; padding: 10px 0; border-bottom: 2px solid var(--line); }
+  .ev .t { width: 360px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; white-space: nowrap; }
+  .ev .dot { width: 22px; height: 22px; border-radius: 50%; flex: none; transform: translateY(-6px); }
+  .ev .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .empty { font-size: 60px; color: var(--muted); }
+
+  .cams { display: grid; gap: 40px; grid-auto-rows: 1fr; overflow: hidden; min-height: 0; }
+  .cam { position: relative; border-radius: 28px; overflow: hidden; background: var(--panel); min-height: 0; }
+  .cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cam span { position: absolute; left: 30px; bottom: 24px; font-size: 48px; color: #fff; background: rgba(0,0,0,.55); padding: 8px 24px; border-radius: 14px; }
+  .cam.err { display: grid; place-items: center; color: var(--muted); font-size: 48px; }
+
+  .ticker { flex: none; display: flex; align-items: center; gap: 60px; padding: 0 160px; height: 200px;
+            background: var(--panel); border-top: 3px solid var(--line); font-size: 64px; overflow: hidden; }
+  .ticker .src { flex: none; color: var(--bg); background: var(--accent); font-weight: 600; font-size: 46px;
+                 letter-spacing: 4px; text-transform: uppercase; padding: 14px 30px; border-radius: 12px; }
+  .ticker .items { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ticker .items i { color: var(--accent); font-style: normal; padding: 0 36px; }
+  body.ticker-top .ticker { order: -1; border-top: 0; border-bottom: 3px solid var(--line); }
+
+  /* ---------- layouter ---------- */
+  body.l-klassisk main { grid-template-columns: 1.15fr 1fr; grid-template-rows: auto 1fr;
+                         grid-template-areas: "clock weather" "cal cams"; }
+  body.l-klassisk .weather { justify-self: end; text-align: right; }
+  body.l-klassisk .weather .wnext { justify-content: flex-end; }
+
+  body.l-sentrert main { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto;
+                         grid-template-areas: "clock clock" "cal weather"; }
+  body.l-sentrert .clock { align-self: center; text-align: center; }
+  body.l-sentrert .weather { justify-self: end; text-align: right; align-self: end; }
+  body.l-sentrert .weather .wnext { justify-content: flex-end; }
+  body.l-sentrert .cal { max-height: 700px; }
+  body.l-sentrert.has-cams main { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "clock clock clock" "cal cams weather"; }
+  body.l-sentrert .cams { height: 640px; align-self: end; }
+
+  body.l-kamera main { grid-template-columns: 2fr 1fr; grid-template-rows: auto auto 1fr;
+                       grid-template-areas: "cams clock" "cams weather" "cams cal"; }
+  body.l-kamera .weather .temp { font-size: 200px; }
+
+  body.l-minimal main { grid-template-columns: 1fr; grid-template-areas: "clock"; place-items: center; }
+  body.l-minimal .clock { text-align: center; }
+  body.l-minimal .weather, body.l-minimal .cal, body.l-minimal .cams { display: none; }
+
+  .clock { grid-area: clock; } .weather { grid-area: weather; } .cal { grid-area: cal; } .cams { grid-area: cams; }
+  /* ---------- skrifttykkelse ---------- */
+  body.w-normal .time, body.w-normal .weather .temp { font-weight: 400; }
+  body.w-normal .clock .date, body.w-normal .ev, body.w-normal .ticker { font-weight: 500; }
+  body.w-fet .time, body.w-fet .weather .temp { font-weight: 700; }
+  body.w-fet .clock .date, body.w-fet .weather .wnext b, body.w-fet .ev, body.w-fet .ticker .items { font-weight: 600; }
+  body.w-fet .clock .sub, body.w-fet .weather .wdesc, body.w-fet .dayname, body.w-fet h2 { font-weight: 600; }
+  /* ---------- bakgrunnsbilde ---------- */
+  #bgimg { position: fixed; inset: 0; background-size: cover; background-position: center; z-index: 0; }
+  #bgdim { position: fixed; inset: 0; background: var(--bg); z-index: 0; }
+  main, .ticker { position: relative; z-index: 1; }
+  body.has-bg .ticker { background: color-mix(in srgb, var(--panel) 80%, transparent); }
+  body.has-bg { --muted: color-mix(in srgb, var(--text) 82%, transparent); }
+  body.has-bg .clock, body.has-bg .weather, body.has-bg .cal, body.has-bg #credit { text-shadow: 0 2px 6px rgba(0,0,0,.55), 0 0 40px rgba(0,0,0,.45); }
+  body.has-bg.t-lys .clock, body.has-bg.t-lys .weather, body.has-bg.t-lys .cal,
+  body.has-bg.t-papir .clock, body.has-bg.t-papir .weather, body.has-bg.t-papir .cal { text-shadow: 0 0 30px rgba(255,255,255,.6); }
+  #credit { position: fixed; right: 60px; bottom: 220px; z-index: 1; font-size: 34px; color: var(--muted); opacity: .8; }
+  body.ticker-top #credit, body:not(.has-ticker) #credit { bottom: 40px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body class="t-mork f-sans c-stor l-klassisk">
+  <div id="bgimg" class="hidden"></div><div id="bgdim" class="hidden"></div><div id="credit" class="hidden"></div>
+  <main>
+    <section class="clock" id="clock">
+      <div class="time" id="time">--:--</div>
+      <div class="date" id="date"></div>
+      <div class="sub" id="sub"></div>
+    </section>
+    <section class="weather" id="weather"></section>
+    <section class="cal" id="calwrap"><div class="calhead"><h2 id="calTitle">Kalender</h2><div class="legend" id="legend"></div></div><div id="cal"></div></section>
+    <section class="cams" id="cams"></section>
+  </main>
+  <footer class="ticker hidden" id="ticker"></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const now = new Date();
+const weekNo = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y0) / 864e5 + 1) / 7); };
+
+const SYMBOL = { clearsky: "Klarvær", fair: "Lettskyet", partlycloudy: "Delvis skyet", cloudy: "Skyet",
+  rain: "Regn", lightrain: "Lett regn", heavyrain: "Kraftig regn", rainshowers: "Regnbyger",
+  lightrainshowers: "Lette regnbyger", heavyrainshowers: "Kraftige regnbyger", snow: "Snø", lightsnow: "Lett snø",
+  heavysnow: "Kraftig snø", snowshowers: "Snøbyger", sleet: "Sludd", lightsleet: "Lett sludd", sleetshowers: "Sluddbyger",
+  fog: "Tåke", rainandthunder: "Regn og torden" };
+const SYMBOL_EN = { clearsky: "Clear", fair: "Fair", partlycloudy: "Partly cloudy", cloudy: "Cloudy",
+  rain: "Rain", lightrain: "Light rain", heavyrain: "Heavy rain", rainshowers: "Rain showers",
+  lightrainshowers: "Light showers", heavyrainshowers: "Heavy showers", snow: "Snow", lightsnow: "Light snow",
+  heavysnow: "Heavy snow", snowshowers: "Snow showers", sleet: "Sleet", lightsleet: "Light sleet", sleetshowers: "Sleet showers",
+  fog: "Fog", rainandthunder: "Rain and thunder" };
+const L = {
+  no: { locale: "no-NO", week: "Uke", calendar: "Kalender", noEvents: "Ingen avtaler de neste dagene", na: "ikke tilgjengelig", sym: SYMBOL },
+  en: { locale: "en-GB", week: "Week", calendar: "Calendar", noEvents: "No upcoming events", na: "unavailable", sym: SYMBOL_EN },
+};
+let T = L.no;
+const symText = s => T.sym[(s || "").replace(/_(day|night|polartwilight)$/, "")] || "";
+
+async function load() {
+  const data = await fetch("api/data").then(r => r.json()).catch(() => ({}));
+  const s = data.settings || {};
+  T = L[data.lang] || L.no;
+  document.documentElement.lang = data.lang || "no";
+  $("calTitle").textContent = T.calendar;
+  const show = s.show || {};
+  document.body.className = [`t-${s.theme || "mork"}`, `f-${s.font || "sans"}`, `w-${s.font_weight || "tynn"}`, `c-${s.clock_size || "stor"}`,
+    `l-${s.layout || "klassisk"}`, s.ticker_position === "top" ? "ticker-top" : ""].join(" ");
+  if (s.accent) document.body.style.setProperty("--accent", s.accent);
+
+  // Bakgrunnsbilde med demping
+  const bg = data.background;
+  ["bgimg", "bgdim", "credit"].forEach(id => $(id).classList.toggle("hidden", !bg));
+  document.body.classList.toggle("has-bg", !!bg);
+  if (bg) {
+    $("bgimg").style.backgroundImage = `url(data:image/jpeg;base64,${bg.image})`;
+    $("bgdim").style.opacity = bg.dim / 100;
+    $("credit").textContent = bg.credit || "";
+  }
+  // Pikselforskyvning: flytt alt litt hvert minutt (skåner skjermen)
+  const m = Math.floor(Date.now() / 60000), step = 10;
+  document.querySelector("main").style.transform = `translate(${((m % 5) - 2) * step}px, ${((Math.floor(m / 5) % 5) - 2) * step}px)`;
+
+  $("time").textContent = now.toLocaleTimeString(T.locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+  $("date").textContent = now.toLocaleDateString(T.locale, { weekday: "long", day: "numeric", month: "long" });
+  $("sub").textContent = `${T.week} ${weekNo(now)} · ${now.getFullYear()}`;
+  $("time").classList.toggle("hidden", show.clock === false);
+  $("date").classList.toggle("hidden", show.date === false);
+  $("sub").classList.toggle("hidden", show.date === false || show.week === false);
+
+  const w = data.weather;
+  $("weather").classList.toggle("hidden", !w);
+  if (w) {
+    $("weather").innerHTML = `<div class="temp">${Math.round(w.now.temp)}°</div>
+      <div class="wdesc">${symText(w.now.symbol)} · ${esc(data.location)}</div>
+      <div class="wnext">${w.next.map(n => `<div>${n.hour}<b>${Math.round(n.temp)}°</b></div>`).join("")}</div>`;
+  }
+
+  $("calwrap").classList.toggle("hidden", show.calendar === false);
+  const legend = data.calendar_legend || [];
+  $("legend").innerHTML = legend.length > 1 ? legend.map(c => `<span><i style="background:${esc(c.color)}"></i>${esc(c.name)}</span>`).join("") : "";
+  const days = data.events || [];
+  $("cal").innerHTML = days.length ? days.map(d => `<div class="day"><div class="dayname">${esc(d.label)}</div>
+      ${d.events.map(e => `<div class="ev"><span class="t">${esc(e.time)}</span>
+        <span class="dot" style="background:${esc(e.color)}"></span><span class="ttl">${esc(e.title)}</span></div>`).join("")}</div>`).join("")
+    : `<div class="empty">${T.noEvents}</div>`;
+
+  const cams = data.cameras || [];
+  $("cams").classList.toggle("hidden", !cams.length);
+  document.body.classList.toggle("has-cams", cams.length > 0);
+  $("cams").innerHTML = cams.map(c => c.image
+    ? `<div class="cam"><img src="data:image/jpeg;base64,${c.image}"><span>${esc(c.name)}</span></div>`
+    : `<div class="cam err">${esc(c.name)} – ${T.na}</div>`).join("");
+
+  const news = data.news;
+  $("ticker").classList.toggle("hidden", !(news && news.items.length));
+  document.body.classList.toggle("has-ticker", !!(news && news.items.length));
+  if (news && news.items.length) {
+    $("ticker").innerHTML = `<span class="src">${esc(news.source)}</span>
+      <span class="items">${news.items.map(esc).join("<i>•</i>")}</span>`;
+  }
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Frame</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #ffffff; --line: #e4e0d8; --text: #1d1b18; --muted: #7b756c;
+    --accent: #c47f1a; --accent-ink: #fff; --ok: #3f8f5a; --off: #b04a3a; --chip: #f0ece5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111110; --card: #1c1b19; --line: #2c2a27; --text: #ece8e1; --muted: #8f897f;
+            --accent: #e0a23e; --accent-ink: #1a1408; --chip: #262421; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; gap: 16px;
+          grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); } }
+  .col { display: grid; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  h1 { font-size: 20px; margin: 0; } h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+       color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--off); display: inline-block; }
+  .dot.on { background: var(--ok); }
+  button, select, input[type=color] { font: inherit; color: inherit; }
+  .btn { border: 1px solid var(--line); background: var(--chip); padding: 9px 14px; border-radius: 10px; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  .btn.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select { border: 1px solid var(--line); background: var(--chip); padding: 8px 10px; border-radius: 10px; max-width: 100%; }
+
+  .preview { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden;
+             background: #000; border: 8px solid #2a2622; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+  .preview iframe { position: absolute; left: 0; top: 0; width: 3840px; height: 2160px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  .preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs .btn { padding: 6px 12px; font-size: 13px; }
+
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  .opt { border: 1px solid var(--line); border-radius: 12px; padding: 8px; cursor: pointer; background: var(--chip); text-align: center; font-size: 13px; }
+  .opt.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .swatch { height: 46px; border-radius: 8px; margin-bottom: 6px; display: flex; align-items: flex-end; padding: 5px; gap: 4px; }
+  .swatch i { width: 12px; height: 12px; border-radius: 50%; }
+  .lay { height: 54px; border-radius: 8px; margin-bottom: 6px; display: grid; gap: 3px; padding: 5px; background: var(--card); }
+  .lay b { background: var(--muted); opacity: .35; border-radius: 3px; } .lay b.k { opacity: .9; background: var(--accent); }
+  .colors { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .colors button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--card); outline: 1px solid var(--line); cursor: pointer; padding: 0; }
+  .colors button.sel { outline: 2px solid var(--text); }
+  input[type=color] { width: 38px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+
+  .toggles { display: grid; gap: 2px; }
+  .tg { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .tg:last-child { border-bottom: 0; }
+  .sw { position: relative; width: 44px; height: 26px; flex: none; }
+  .sw input { opacity: 0; width: 0; height: 0; }
+  .sw span { position: absolute; inset: 0; background: var(--line); border-radius: 26px; transition: .15s; cursor: pointer; }
+  .sw span::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .15s; }
+  .sw input:checked + span { background: var(--accent); }
+  .sw input:checked + span::before { transform: translateX(18px); }
+  .field { display: grid; gap: 6px; margin-top: 14px; }
+  .field label { font-size: 13px; color: var(--muted); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  .stations { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .station { padding: 14px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--chip); cursor: pointer; font-weight: 600; text-align: center; }
+  .station.playing { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  input[type=search] { width: 100%; font: inherit; color: inherit; border: 1px solid var(--line); background: var(--chip); padding: 9px 12px; border-radius: 10px; }
+  .results { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; background: var(--card); border: 1px solid var(--line);
+             border-radius: 10px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+  .results div { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
+  .results div:last-child { border-bottom: 0; }
+  .results div:hover { background: var(--chip); }
+  .results small { color: var(--muted); display: block; }
+  .callist { margin-top: 10px; }
+  .calrow { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .calrow:last-child { border-bottom: 0; }
+  .calrow .cdot { width: 26px; height: 26px; border-radius: 50%; flex: none; position: relative; overflow: hidden; cursor: pointer; border: 2px solid var(--card); outline: 1px solid var(--line); }
+  .calrow .cdot input { position: absolute; inset: -8px; opacity: 0; cursor: pointer; }
+  .calrow .cname { flex: 1; min-width: 0; }
+  .calrow .cname input { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; font-weight: 600; padding: 2px 0; }
+  .calrow .cname input:focus { outline: none; border-bottom: 1px solid var(--accent); }
+  .calrow .cname small { color: var(--muted); display: block; font-size: 12px; }
+  .calrow.off .cname { opacity: .45; }
+  .icon { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 4px 6px; border-radius: 8px; }
+  .icon:hover { color: var(--text); background: var(--chip); }
+  .calform { margin-top: 10px; padding: 14px; border: 1px dashed var(--line); border-radius: 12px; }
+  .help { margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .help summary { cursor: pointer; }
+  .help p { margin: 8px 0 0; }
+  .emptycal { color: var(--muted); font-size: 14px; padding: 10px 0; }
+  /* ---------- ryddig oppsett med faner ---------- */
+  .wrap { max-width: 1100px; display: block; }
+  .wrap > * + * { margin-top: 14px; }
+  .top { display: grid; gap: 12px 20px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+         grid-template-areas: "tabs title" "prev btns"; align-items: start; }
+  .top > :nth-child(1) { grid-area: title; margin: 0 !important; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .top > :nth-child(2) { grid-area: tabs; margin: 0; }
+  .top > :nth-child(3) { grid-area: prev; }
+  .top > :nth-child(4) { grid-area: btns; margin: 0 !important; flex-direction: column; align-items: stretch; }
+  .top > :nth-child(4) > .row { flex-direction: column; align-items: stretch; }
+  .top > :nth-child(4) .btn { width: 100%; text-align: center; }
+  @media (max-width: 760px) { .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "tabs" "prev" "btns"; }
+    .top > :nth-child(4) > .row { flex-direction: row; flex-wrap: wrap; } .top > :nth-child(4) .btn { width: auto; flex: 1 1 40%; } }
+  .maintabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px; background: var(--card); border: 1px solid var(--line);
+              border-radius: 14px; position: sticky; top: 8px; z-index: 4; scrollbar-width: none; }
+  .maintabs button { flex: 1 0 auto; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600;
+                     padding: 10px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap; }
+  .maintabs button.on { background: var(--accent); color: var(--accent-ink); }
+  .pane { display: none; }
+  .pane.on { display: block; }
+  .pane.two.on { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+  .pane > section + section { margin-top: 14px; }
+  .pane.two > section + section { margin-top: 0; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+           padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: .2s; pointer-events: none; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <section class="card top">
+      <div class="row between" style="margin-bottom:12px">
+        <div class="row"><h1>The Frame</h1><span class="dot" id="tvDot"></span><span class="muted" id="tvState">Kobler til…</span></div>
+        <div class="row" style="gap:14px"><label class="row muted">Dashboard på TV <span class="sw"><input type="checkbox" id="enabled"><span></span></span></label>
+        <label class="row muted">Språk <select id="langSel"><option value="auto">Automatisk</option><option value="no">Norsk</option><option value="en">English</option></select></label></div>
+      </div>
+      <div class="tabs"><button class="btn sel" data-pv="live">Forhåndsvisning</button><button class="btn" data-pv="tv">Sist sendt til TV</button></div>
+      <div class="preview" id="preview"><iframe id="pvFrame" title="Forhåndsvisning"></iframe><img id="pvImg" alt="" hidden></div>
+      <div class="row between" style="margin-top:12px">
+        <span class="muted" id="lastPush"></span>
+        <div class="row">
+          <button class="btn" data-tv='{"art_mode":true}'>Art Mode</button>
+          <button class="btn" data-tv='{"art_mode":false}'>TV-modus</button>
+          <button class="btn" data-tv='{"power":false}'>Skru av</button>
+          <button class="btn" data-tv='{"power":true}'>Slå på</button>
+          <button class="btn primary" id="refresh">Send til TV nå</button>
+        </div>
+      </div>
+    </section>
+  <nav class="maintabs" id="maintabs"><button data-tab="utseende">Utseende</button><button data-tab="innhold">Innhold</button><button data-tab="kalender">Kalender</button><button data-tab="kamera">Kamera</button><button data-tab="radio">Radio</button><button data-tab="tv">TV og sensor</button></nav>
+  <div class="pane two" data-pane="utseende">
+    <section class="card">
+      <h2>Layout</h2>
+      <div class="grid" id="layouts"></div>
+      <h2 style="margin-top:20px">Tema</h2>
+      <div class="grid" id="themes"></div>
+
+    </section>
+    <section class="card">
+      <h2>Bakgrunnsbilde</h2>
+      <div class="row" style="gap:16px">
+        <div class="field" style="margin:0"><label>Kilde</label>
+          <select id="bgSource"><option value="none">Ingen (ensfarget)</option><option value="natur">Foto – Unsplash (moderne fotokunst)</option><option value="bing">Dagens naturfoto – Bing (4K, nytt hver dag)</option><option value="kunst">Malerier – Cleveland Museum of Art</option></select></div>
+        <div class="field" style="margin:0"><label>Bytt bilde hvert</label>
+          <select id="bgInterval"><option value="10">10 min</option><option value="30">30 min</option><option value="60">time</option><option value="180">3. time</option><option value="1440">døgn</option></select></div>
+        <button class="btn" id="bgNext" style="align-self:end">Neste bilde</button>
+      </div>
+      <div class="field"><label>Demping av bildet (for lesbar tekst) <b id="bgDimV"></b></label><input type="range" id="bgDim" min="0" max="90" step="5"></div>
+      <h2 style="margin-top:20px">Aksentfarge</h2>
+      <div class="colors" id="colors"></div>
+      <div class="row" style="margin-top:18px; gap:20px">
+        <div class="field" style="margin:0"><label>Skrift</label>
+          <select id="font"><option value="sans">Moderne</option><option value="serif">Klassisk (serif)</option></select></div>
+        <div class="field" style="margin:0"><label>Skrifttykkelse</label>
+          <select id="font_weight"><option value="tynn">Tynn</option><option value="normal">Normal</option><option value="fet">Fet</option></select></div>
+        <div class="field" style="margin:0"><label>Klokkestørrelse</label>
+          <select id="clock_size"><option value="stor">Stor</option><option value="medium">Medium</option><option value="liten">Liten</option></select></div>
+      </div>
+    </section>
+  </div>
+  <div class="pane" data-pane="innhold">
+    <section class="card">
+      <h2>Hva vises</h2>
+      <div class="toggles" id="shows"></div>
+      <div class="field"><label>Sted for vær – nå: <b id="locName"></b></label>
+        <div style="position:relative">
+          <input id="locSearch" type="search" placeholder="Søk sted, f.eks. Bergen eller Sandvika" autocomplete="off">
+          <div id="locResults" class="results" hidden></div>
+        </div>
+      </div>
+      <div class="row" style="gap:16px">
+        <div class="field"><label>Nyhetskilde</label><select id="news_source"></select></div>
+        <div class="field"><label>Antall saker</label><select id="news_count"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+        <div class="field"><label>Plassering</label><select id="ticker_position"><option value="bottom">Nederst</option><option value="top">Øverst</option></select></div>
+      </div>
+    </section>
+  </div>
+  <div class="pane" data-pane="kalender">
+    <section class="card" id="calCard">
+      <div class="row between"><h2 style="margin:0">Kalendere</h2>
+        <button class="btn" id="calAddBtn">+ Legg til</button></div>
+      <div id="calList" class="callist"></div>
+
+      <div id="calForm" class="calform" hidden>
+        <div class="field"><label>iCal-lenke (hemmelig adresse)</label>
+          <div class="row" style="flex-wrap:nowrap">
+            <input id="calUrl" type="search" placeholder="https://calendar.google.com/…/basic.ics" autocomplete="off">
+            <button class="btn" id="calTest">Sjekk</button>
+          </div>
+          <span class="muted" id="calTestMsg"></span>
+        </div>
+        <div class="field"><label>Navn (vises på TV-en)</label>
+          <input id="calName" type="search" placeholder="F.eks. Familie, Jobb, Skole" autocomplete="off"></div>
+        <div class="field"><label>Farge</label><div class="colors" id="calColors"></div></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn primary" id="calSave">Lagre kalender</button>
+          <button class="btn" id="calCancel">Avbryt</button>
+        </div>
+        <details class="help">
+          <summary>Hvor finner jeg lenken?</summary>
+          <p><b>Google:</b> calendar.google.com på PC → ⚙️ Innstillinger → velg kalenderen til venstre →
+            «Integrer kalender» → kopier <i>Hemmelig adresse i iCal-format</i>.</p>
+          <p><b>iCloud (iPhone/Mac):</b> Kalender-appen → trykk ⓘ ved kalenderen → slå på <i>Offentlig kalender</i> → del lenken.</p>
+          <p><b>Outlook:</b> outlook.com → Innstillinger → Kalender → Delte kalendere → Publiser → kopier ICS-lenken.</p>
+        </details>
+      </div>
+
+      <div class="row" style="gap:16px">
+        <div class="field"><label>Hent avtaler for</label>
+          <select id="calendar_days"><option value="1">I dag</option><option value="3">3 dager</option><option value="7">1 uke</option><option value="14">2 uker</option><option value="31">1 måned</option></select></div>
+        <div class="field"><label>Maks dager i lista</label>
+          <select id="calendar_list_days"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>7</option></select></div>
+      </div>
+      <div class="tg" style="margin-top:8px"><span>Vis navn og farger øverst</span><span class="sw"><input type="checkbox" data-show="calendar_legend"><span></span></span></div>
+    </section>
+  </div>
+  <div class="pane" data-pane="kamera">
+    <section class="card" id="camCard">
+      <h2>Kameraer på TV-en</h2>
+      <div id="camList" class="callist"></div>
+      <p class="muted" id="camHint" style="margin:10px 0 0"></p>
+    </section>
+  </div>
+  <div class="pane" data-pane="radio">
+    <section class="card">
+      <div class="row between"><h2 style="margin:0">Radio</h2>
+        <div class="row"><select id="speaker"></select><button class="btn" id="radioStop">Stopp</button></div></div>
+      <div class="stations" id="stations" style="margin-top:14px"></div>
+      <div class="field" id="volWrap" hidden><label>Volum</label><input type="range" id="volume" min="0" max="100" value="30"></div>
+    </section>
+  </div>
+  <div class="pane two" data-pane="tv">
+    <section class="card" id="tvCard">
+      <h2>TV</h2>
+      <div class="calrow"><div class="cname"><b id="tvName">–</b><small id="tvMeta"></small></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="tvScan">Finn TV-er på nettet</button>
+        <span class="muted" id="tvScanMsg"></span></div>
+      <div id="tvFound" class="callist"></div>
+      <details class="help"><summary>Finner den ikke TV-en?</summary>
+        <p>TV-en må være på (eller i Art Mode) og på samme nettverk. Første gang må du godta tilkoblingen på TV-skjermen.</p>
+        <div class="row" style="flex-wrap:nowrap;margin-top:8px"><input id="tvIp" type="search" placeholder="Skriv inn IP, f.eks. 192.168.1.50"><button class="btn" id="tvIpBtn">Bruk</button></div>
+      </details>
+    </section>
+    <section class="card">
+      <h2>Skjerm og sensor (Art Mode)</h2>
+      <div class="field"><label>Lysstyrke <b id="brightnessV"></b></label><input type="range" id="brightness" min="0" max="10"></div>
+      <div class="field"><label>Fargetemperatur <b id="color_temperatureV"></b></label><input type="range" id="color_temperature" min="-5" max="5"></div>
+      <div class="tg"><span>Automatisk lysstyrke (lyssensor)</span><span class="sw"><input type="checkbox" id="brightness_sensor_setting"><span></span></span></div>
+      <div class="row" style="gap:16px">
+        <div class="field"><label>Skjerm av uten bevegelse</label>
+          <select id="motion_timer"><option value="off">Aldri</option><option value="5">5 min</option><option value="15">15 min</option>
+            <option value="30">30 min</option><option value="60">1 time</option><option value="120">2 timer</option><option value="240">4 timer</option></select></div>
+        <div class="field"><label>Bevegelsesfølsomhet</label>
+          <select id="motion_sensitivity"><option value="1">Lav</option><option value="2">Middels</option><option value="3">Høy</option></select></div>
+      </div>
+      <div class="field"><label>Oppdater TV-bildet hvert</label>
+        <select id="interval_seconds"><option value="60">minutt</option><option value="120">2. minutt</option><option value="300">5. minutt</option><option value="900">15. minutt</option></select></div>
+    </section>
+    <section class="card" id="presCard">
+      <div class="row between"><h2 style="margin:0">Tilstedeværelse</h2>
+        <span class="sw" title="Styr TV-en med sensorer"><input type="checkbox" id="presEnabled"><span></span></span></div>
+      <p class="muted" id="presStatus" style="margin:8px 0 0"></p>
+      <div id="presList" class="callist"></div>
+      <div class="row" style="gap:16px">
+        <div class="field"><label>Slå av når rommet har vært tomt i</label>
+          <select id="presOff"><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 time</option></select></div>
+      </div>
+      <div class="tg" style="margin-top:8px"><span>Slå på TV-en (Art Mode) når noen kommer inn</span><span class="sw"><input type="checkbox" id="presOn"><span></span></span></div>
+      <div class="tg"><span>Slå av TV-en når rommet er tomt (bare i Art Mode)</span><span class="sw"><input type="checkbox" id="presOffEn"><span></span></span></div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- språk (norsk / engelsk)
+const EN = {
+  "Forhåndsvisning": "Preview", "Sist sendt til TV": "Last sent to TV", "Dashboard på TV": "Dashboard on TV",
+  "Kobler til…": "Connecting…", "Art Mode": "Art Mode", "TV-modus": "TV mode", "Skru av": "Turn off", "Slå på": "Turn on",
+  "Send til TV nå": "Send to TV now", "Utseende": "Appearance", "Innhold": "Content", "Kalender": "Calendar", "Kamera": "Camera",
+  "Radio": "Radio", "TV og sensor": "TV & sensors", "Layout": "Layout", "Tema": "Theme", "Aksentfarge": "Accent colour",
+  "Bakgrunnsbilde": "Background image", "Kilde": "Source", "Bytt bilde hvert": "Change image every", "Neste bilde": "Next image",
+  "Demping av bildet (for lesbar tekst)": "Image dimming (for readable text)", "Ingen (ensfarget)": "None (solid colour)",
+  "Foto – Unsplash (moderne fotokunst)": "Photos – Unsplash (modern photography)",
+  "Dagens naturfoto – Bing (4K, nytt hver dag)": "Nature photo of the day – Bing (4K, daily)",
+  "Malerier – Cleveland Museum of Art": "Paintings – Cleveland Museum of Art",
+  "Skrift": "Font", "Moderne": "Modern", "Klassisk (serif)": "Classic (serif)", "Skrifttykkelse": "Font weight",
+  "Tynn": "Thin", "Normal": "Normal", "Fet": "Bold", "Klokkestørrelse": "Clock size", "Stor": "Large", "Medium": "Medium", "Liten": "Small",
+  "Klassisk": "Classic", "Sentrert klokke": "Centred clock", "Stort kamera": "Large camera", "Minimal": "Minimal",
+  "Mørk": "Dark", "Lys": "Light", "Papir": "Paper", "Natt": "Night", "Skog": "Forest",
+  "Temaets farge": "Theme colour", "Egen farge": "Custom colour",
+  "Hva vises": "What to show", "Klokke": "Clock", "Dato": "Date", "Ukenummer": "Week number", "Vær": "Weather",
+  "Nyhetsstripe": "News ticker", "Sted for vær – nå:": "Weather location – now:", "ikke satt": "not set",
+  "Søk sted, f.eks. Bergen eller Sandvika": "Search a place, e.g. London or Bergen", "Fant ingen steder": "No places found",
+  "Nyhetskilde": "News source", "Antall saker": "Headlines", "Plassering": "Position", "Nederst": "Bottom", "Øverst": "Top",
+  "Kalendere": "Calendars", "+ Legg til": "+ Add", "iCal-lenke (hemmelig adresse)": "iCal link (secret address)", "Sjekk": "Check",
+  "Navn (vises på TV-en)": "Name (shown on the TV)", "F.eks. Familie, Jobb, Skole": "E.g. Family, Work, School", "Farge": "Colour",
+  "Lagre kalender": "Save calendar", "Avbryt": "Cancel", "Hvor finner jeg lenken?": "Where do I find the link?",
+  "Google:": "Google:", "Hemmelig adresse i iCal-format": "Secret address in iCal format", "iCloud (iPhone/Mac):": "iCloud (iPhone/Mac):",
+  "Offentlig kalender": "Public Calendar", "→ del lenken.": "→ share the link.", "Outlook:": "Outlook:",
+  "Kalender-appen → trykk ⓘ ved kalenderen → slå på": "Calendar app → tap ⓘ next to the calendar → turn on",
+  "outlook.com → Innstillinger → Kalender → Delte kalendere → Publiser → kopier ICS-lenken.": "outlook.com → Settings → Calendar → Shared calendars → Publish → copy the ICS link.",
+  "Hent avtaler for": "Show events for", "I dag": "Today", "3 dager": "3 days", "1 uke": "1 week", "2 uker": "2 weeks", "1 måned": "1 month",
+  "Maks dager i lista": "Max days in list", "Vis navn og farger øverst": "Show names and colours at the top",
+  "Vis på TV": "Show on TV", "Fjern": "Remove", "Flytt opp": "Move up", "Flytt ned": "Move down", "Endre farge": "Change colour",
+  "Ingen kalendere ennå. Trykk «+ Legg til» for å legge til den første.": "No calendars yet. Tap “+ Add” to add your first.",
+  "Kalender lagt til": "Calendar added", "Kalender fjernet": "Calendar removed", "Vises på TV-en": "Shown on the TV",
+  "Skjult fra TV-en": "Hidden from the TV", "Farge endret": "Colour changed", "Navn endret": "Name changed",
+  "Lim inn iCal-lenken først": "Paste the iCal link first", "Sjekker lenken …": "Checking link …",
+  "Kameraer på TV-en": "Cameras on the TV", "Fant ingen kameraer i Home Assistant.": "No cameras found in Home Assistant.",
+  "Oppsett": "Configuration", "Kameravalg lagret": "Camera selection saved", "Maks 4 kameraer": "Max 4 cameras",
+  "«Kamera» er slått av under Hva vises.": "“Camera” is turned off under What to show.",
+  "Minimal-layouten viser ikke kamera.": "The Minimal layout doesn’t show cameras.",
+  "Sentrert klokke viser bare det første kameraet.": "Centred clock only shows the first camera.",
+  "Maks 4 kameraer. Bildet oppdateres hvert minutt (Art Mode viser bare stillbilder).": "Max 4 cameras. The image updates every minute (Art Mode shows still images only).",
+  "Stopp": "Stop", "Volum": "Volume", "TV-en": "The TV", "Denne maskinen": "This computer",
+  "Skjerm og sensor (Art Mode)": "Screen & sensors (Art Mode)", "Lysstyrke": "Brightness", "Fargetemperatur": "Colour temperature",
+  "Automatisk lysstyrke (lyssensor)": "Auto brightness (light sensor)", "Skjerm av uten bevegelse": "Screen off without motion",
+  "Bevegelsesfølsomhet": "Motion sensitivity", "Aldri": "Never", "1 time": "1 hour", "2 timer": "2 hours", "4 timer": "4 hours",
+  "Lav": "Low", "Middels": "Medium", "Høy": "High", "Oppdater TV-bildet hvert": "Update the TV image every",
+  "minutt": "minute", "2. minutt": "2 minutes", "5. minutt": "5 minutes", "15. minutt": "15 minutes",
+  "time": "hour", "3. time": "3 hours", "døgn": "day",
+  "Tilstedeværelse": "Presence", "Styr TV-en med sensorer": "Control the TV with sensors",
+  "Slå av når rommet har vært tomt i": "Turn off when the room has been empty for",
+  "Slå på TV-en (Art Mode) når noen kommer inn": "Turn the TV on (Art Mode) when someone arrives",
+  "Slå av TV-en når rommet er tomt (bare i Art Mode)": "Turn the TV off when the room is empty (Art Mode only)",
+  "Av – TV-en styres ikke av sensorer.": "Off – the TV isn’t controlled by sensors.", "Velg minst én sensor under.": "Pick at least one sensor below.",
+  "Noen er i rommet nå.": "Someone is in the room.", "Starter …": "Starting …",
+  "Fant ingen tilstedeværelse- eller bevegelsessensorer i Home Assistant.": "No presence or motion sensors found in Home Assistant.",
+  "TV": "TV", "Ingen TV valgt": "No TV selected", "Trykk «Finn TV-er på nettet» for å velge TV.": "Tap “Find TVs on the network” to choose a TV.",
+  "Finn TV-er på nettet": "Find TVs on the network", "Finner den ikke TV-en?": "Can’t find the TV?",
+  "TV-en må være på (eller i Art Mode) og på samme nettverk. Første gang må du godta tilkoblingen på TV-skjermen.": "The TV must be on (or in Art Mode) and on the same network. The first time, accept the connection on the TV screen.",
+  "Skriv inn IP, f.eks. 192.168.1.50": "Enter IP, e.g. 192.168.1.50", "Bruk": "Use", "Velg": "Select", "Valgt": "Selected",
+  "Leter … (tar noen sekunder)": "Searching … (takes a few seconds)", "Fant ingen – er TV-en på?": "None found – is the TV on?",
+  "Fant ikke TV-en": "TV not found", "Av / utilgjengelig": "Off / unavailable", "Standby": "Standby",
+  "Lagret": "Saved", "Lagret – TV-en oppdateres om litt": "Saved – the TV updates shortly", "Kunne ikke lagre": "Couldn’t save",
+  "Sendt til TV-en": "Sent to the TV", "Sender til TV-en …": "Sending to the TV …", "Feil": "Error",
+  "Språk": "Language", "Automatisk": "Automatic",
+  "calendar.google.com på PC → ⚙️ Innstillinger → velg kalenderen til venstre → «Integrer kalender» → kopier": "calendar.google.com on a computer → ⚙️ Settings → pick the calendar on the left → “Integrate calendar” → copy the",
+};
+const EN_RX = [
+  [/^Sist sendt (.+)$/, "Last sent $1"], [/^Feil: (.+)$/, "Error: $1"], [/^Fant (\d+)$/, "Found $1"],
+  [/^Spiller (.+)$/, "Playing $1"], [/^Valgte (.+) – godta tilkoblingen på TV-en hvis den spør$/, "Selected $1 – accept the connection on the TV if asked"],
+  [/^✓ Fungerer – (\d+) avtaler de neste 30 dagene$/, "✓ Works – $1 events in the next 30 days"],
+  [/^Rommet er tomt – sist sett (.+)\.$/, "The room is empty – last seen $1."],
+  [/^Fjerne kalenderen «(.+)» fra TV-en\?$/, "Remove the calendar “$1” from the TV?"],
+  [/^(.+) – ikke tilgjengelig$/, "$1 – unavailable"],
+  [/^(.*)· nr\. (\d+)$/, "$1· no. $2"],
+  [/^(bevegelse|tilstedeværelse|person \(hjemme\/borte\)|telefon \(hjemme\/borte\)) · nå: (.+)$/, (m, k, st) =>
+    ({ "bevegelse": "motion", "tilstedeværelse": "presence", "person (hjemme/borte)": "person (home/away)", "telefon (hjemme/borte)": "phone (home/away)" }[k]) +
+    " · now: " + ({ "noen der": "occupied", "tomt": "clear", "hjemme": "home", "borte": "away" }[st] || st)],
+];
+let LANG = "no";
+function tr(t) {
+  if (LANG !== "en" || !t) return t;
+  const k = t.trim(); if (!k) return t;
+  const kn = k.replace(/\s+/g, " ");
+  if (EN[kn] !== undefined) return t.replace(k, EN[kn]);
+  for (const [rx, rep] of EN_RX) if (rx.test(k)) return t.replace(k, k.replace(rx, rep));
+  return t;
+}
+function translateTree(root) {
+  if (LANG !== "en" || !root) return;
+  if (root.nodeType === 3) { const n = tr(root.nodeValue); if (n !== root.nodeValue) root.nodeValue = n; return; }
+  if (root.nodeType !== 1 || root.tagName === "SCRIPT" || root.tagName === "STYLE") return;
+  for (const a of ["placeholder", "title"]) if (root.hasAttribute && root.hasAttribute(a)) {
+    const v = root.getAttribute(a), n = tr(v); if (n !== v) root.setAttribute(a, n); }
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let node; while ((node = w.nextNode())) {
+    if (node.nodeType === 3) { const n = tr(node.nodeValue); if (n !== node.nodeValue) node.nodeValue = n; }
+    else for (const a of ["placeholder", "title"]) if (node.hasAttribute(a)) { const v = node.getAttribute(a), n = tr(v); if (n !== v) node.setAttribute(a, n); }
+  }
+}
+new MutationObserver(ms => { for (const m of ms) {
+  if (m.type === "characterData") translateTree(m.target);
+  else m.addedNodes.forEach(translateTree);
+} }).observe(document.body, { childList: true, subtree: true, characterData: true });
+function setLang(l) {
+  LANG = l === "en" ? "en" : "no";
+  document.documentElement.lang = LANG;
+  translateTree(document.body);
+}
+
+const $ = id => document.getElementById(id);
+const BASE = location.pathname.replace(/\/control$/, "");
+const api = (p, body) => fetch(BASE + p, body === undefined ? {} : {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json());
+let S = null, ST = null;
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+
+const THEMES = { mork: ["Mørk", "#14120f", "#efe8dc", "#e8b04b"], lys: ["Lys", "#f3efe8", "#1f1b16", "#b5651d"],
+  papir: ["Papir", "#ebe3d3", "#2b2419", "#8c3b2b"], natt: ["Natt", "#000", "#8a8a8a", "#7a3a2a"], skog: ["Skog", "#0f1712", "#e3eadf", "#9cc77a"] };
+const LAYOUTS = {
+  klassisk: ["Klassisk", "1.2fr 1fr", "1fr 1.4fr", ["k", "", "", ""]],
+  sentrert: ["Sentrert klokke", "1fr 1fr", "1.6fr 1fr", ["k k", "", ""], true],
+  kamera:   ["Stort kamera", "2fr 1fr", "1fr 1fr 1fr", null],
+  minimal:  ["Minimal", "1fr", "1fr", ["k"]],
+};
+const ACCENTS = ["", "#e8b04b", "#d9663a", "#c0392b", "#d6589b", "#8e6cd8", "#3d7fd9", "#2fa7a0", "#5aa04a", "#ffffff"];
+const SHOWS = [["clock", "Klokke"], ["date", "Dato"], ["week", "Ukenummer"], ["weather", "Vær"], ["calendar", "Kalender"], ["cameras", "Kamera"], ["news", "Nyhetsstripe"]];
+
+function layoutThumb(key) {
+  const tpl = {
+    klassisk: `grid-template-columns:1.2fr 1fr;grid-template-rows:1fr 1.3fr"><b class="k"></b><b></b><b></b><b></b>`,
+    sentrert: `grid-template-columns:1fr 1fr;grid-template-rows:1.6fr 1fr"><b class="k" style="grid-column:span 2"></b><b></b><b></b>`,
+    kamera:   `grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr 1fr"><b style="grid-row:span 3"></b><b class="k"></b><b></b><b></b>`,
+    minimal:  `grid-template-columns:1fr;place-items:center"><b class="k" style="width:60%;height:50%"></b>`,
+  }[key];
+  return `<div class="lay" style="${tpl}</div>`;
+}
+
+function render() {
+  const s = S.settings;
+  $("enabled").checked = s.enabled;
+  $("layouts").innerHTML = Object.entries(LAYOUTS).map(([k, v]) =>
+    `<div class="opt ${s.layout === k ? "sel" : ""}" data-set='{"layout":"${k}"}'>${layoutThumb(k)}${v[0]}</div>`).join("");
+  $("themes").innerHTML = Object.entries(THEMES).map(([k, [n, bg, fg, ac]]) =>
+    `<div class="opt ${s.theme === k ? "sel" : ""}" data-set='{"theme":"${k}"}'><div class="swatch" style="background:${bg};border:1px solid var(--line)"><i style="background:${fg}"></i><i style="background:${ac}"></i></div>${n}</div>`).join("");
+  const custom = s.accent && !ACCENTS.includes(s.accent);
+  $("colors").innerHTML = ACCENTS.map(c => `<button title="${c || "Temaets farge"}" class="${(s.accent || "") === c ? "sel" : ""}"
+      style="background:${c || `conic-gradient(${THEMES[s.theme][3]} 0 50%, ${THEMES[s.theme][1]} 0)`}" data-set='{"accent":"${c}"}'></button>`).join("")
+    + `<input type="color" id="accentPick" value="${custom ? s.accent : "#e8b04b"}" title="Egen farge">`;
+  $("accentPick").onchange = e => save({ accent: e.target.value });
+  $("font").value = s.font; $("font_weight").value = s.font_weight || "tynn"; $("clock_size").value = s.clock_size;
+  $("shows").innerHTML = SHOWS.map(([k, n]) => `<div class="tg"><span>${n}</span><span class="sw"><input type="checkbox" data-show="${k}" ${s.show[k] ? "checked" : ""}><span></span></span></div>`).join("");
+  $("news_source").innerHTML = S.news_feeds.map((n, i) => `<option value="${i}">${n}</option>`).join("");
+  $("news_source").value = s.news_source; $("news_count").value = s.news_count; $("ticker_position").value = s.ticker_position;
+  $("interval_seconds").value = s.interval_seconds;
+  $("locName").textContent = (s.location || S.location || {}).name || "ikke satt";
+  $("calendar_days").value = s.calendar_days; $("calendar_list_days").value = s.calendar_list_days;
+  document.querySelector('[data-show="calendar_legend"]').checked = s.show.calendar_legend !== false;
+  renderCalendars();
+  renderCameras();
+  renderPresence();
+  renderTvInfo();
+  const bg = s.background || {};
+  $("bgSource").value = bg.source || "none"; $("bgInterval").value = String(bg.interval_minutes || 30);
+  $("bgDim").value = bg.dim ?? 55; $("bgDimV").textContent = (bg.dim ?? 55) + " %";
+
+  const r = S.radio;
+  const cur = $("speaker").value;
+  $("speaker").innerHTML = r.speakers.map(sp => `<option value="${sp.id}">${sp.name}</option>`).join("");
+  if (cur) $("speaker").value = cur;
+  const playing = r.playing[$("speaker").value];
+  $("stations").innerHTML = r.stations.map(st => `<div class="station ${playing === st.id ? "playing" : ""}" data-station="${st.id}">${st.name}</div>`).join("");
+  $("volWrap").hidden = (r.speakers.find(sp => sp.id === $("speaker").value) || {}).type !== "ha";
+  renderTV();
+}
+
+function renderTV() {
+  const tv = S.tv || {};
+  $("tvDot").classList.toggle("on", !!tv.online);
+  $("tvState").textContent = !tv.online ? "Av / utilgjengelig" : tv.art_mode ? "Art Mode" : tv.power === "standby" ? "Standby" : "TV-modus";
+  for (const k of ["brightness", "color_temperature"]) if (tv[k] !== undefined && document.activeElement !== $(k)) { $(k).value = tv[k]; $(k + "V").textContent = tv[k]; }
+  if (tv.motion_timer) $("motion_timer").value = tv.motion_timer;
+  if (tv.motion_sensitivity) $("motion_sensitivity").value = tv.motion_sensitivity;
+  if (tv.brightness_sensor_setting) $("brightness_sensor_setting").checked = tv.brightness_sensor_setting === "on";
+  $("lastPush").textContent = S.last_error ? "Feil: " + S.last_error
+    : S.last_push ? "Sist sendt " + new Date(S.last_push * 1000).toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" }) : "";
+}
+
+async function load() { S = await api("/api/status"); setLang(S.lang); render(); $("langSel").value = S.settings.language || "auto"; if (!(S.tv_info || {}).ip) showTab("tv"); }
+async function poll() { try { const n = await api("/api/status"); S.tv = n.tv; S.last_push = n.last_push; S.last_error = n.last_error; S.radio = n.radio; S.presence_state = n.presence_state; S.presence_options = n.presence_options; renderTV(); renderPresence(); } catch {} }
+
+let pvTimer;
+async function save(patch) {
+  const r = await api("/api/settings", patch);
+  if (!r.ok) return toast(r.error || "Kunne ikke lagre");
+  S.settings = r.settings; render();
+  clearTimeout(pvTimer); pvTimer = setTimeout(() => $("pvFrame").contentWindow.location.reload(), 150);
+  toast("Lagret – TV-en oppdateres om litt");
+}
+async function tv(cmd) {
+  const r = await api("/api/tv", cmd);
+  toast(r.ok ? "Sendt til TV-en" : (r.error || "Feil")); setTimeout(poll, 2500);
+}
+
+document.addEventListener("click", e => {
+  const set = e.target.closest("[data-set]"); if (set) return save(JSON.parse(set.dataset.set));
+  const t = e.target.closest("[data-tv]"); if (t) return tv(JSON.parse(t.dataset.tv));
+  const st = e.target.closest("[data-station]");
+  if (st) return api("/api/radio", { station: st.dataset.station, speaker: $("speaker").value })
+    .then(r => { if (!r.ok) return toast(r.error); S.radio = r.radio; render(); toast("Spiller " + st.textContent); });
+  const pv = e.target.closest("[data-pv]");
+  if (pv) {
+    document.querySelectorAll("[data-pv]").forEach(b => b.classList.toggle("sel", b === pv));
+    const live = pv.dataset.pv === "live";
+    $("pvFrame").hidden = !live; $("pvImg").hidden = live;
+    if (!live) $("pvImg").src = BASE + "/preview.jpg?t=" + Date.now();
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset.show) return save({ show: { [el.dataset.show]: el.checked } });
+  if (["font", "font_weight", "clock_size", "ticker_position"].includes(el.id)) return save({ [el.id]: el.value });
+  if (["news_source", "news_count", "interval_seconds", "calendar_days", "calendar_list_days"].includes(el.id)) return save({ [el.id]: +el.value });
+  if (el.id === "enabled") return save({ enabled: el.checked });
+  if (["brightness", "color_temperature"].includes(el.id)) return tv({ [el.id]: +el.value });
+  if (["motion_timer", "motion_sensitivity"].includes(el.id)) return tv({ [el.id]: el.value });
+  if (el.id === "brightness_sensor_setting") return tv({ brightness_sensor_setting: el.checked ? "on" : "off" });
+  if (el.id === "speaker") return render();
+  if (el.id === "volume") return api("/api/radio", { speaker: $("speaker").value, volume: el.value / 100 });
+});
+document.addEventListener("input", e => { if ($(e.target.id + "V")) $(e.target.id + "V").textContent = e.target.value; });
+$("langSel").addEventListener("change", async e => { e.stopPropagation();
+  const r = await api("/api/settings", { language: e.target.value }); if (r.ok) location.reload(); });
+$("refresh").onclick = () => api("/api/refresh", {}).then(() => toast("Sender til TV-en …"));
+$("radioStop").onclick = () => api("/api/radio", { stop: true, speaker: $("speaker").value }).then(r => { if (r.ok) { S.radio = r.radio; render(); } else toast(r.error); });
+
+// ---------- bakgrunnsbilde
+const saveBg = patch => save({ background: patch });
+$("bgSource").addEventListener("change", e => { e.stopPropagation(); saveBg({ source: e.target.value }); });
+$("bgInterval").addEventListener("change", e => { e.stopPropagation(); saveBg({ interval_minutes: +e.target.value }); });
+$("bgDim").addEventListener("change", e => { e.stopPropagation(); saveBg({ dim: +e.target.value }); });
+$("bgDim").addEventListener("input", e => { $("bgDimV").textContent = e.target.value + " %"; });
+$("bgNext").onclick = () => saveBg({ offset: ((S.settings.background || {}).offset || 0) + 1 });
+
+// ---------- TV-valg
+function renderTvInfo() {
+  const t = S.tv_info || {};
+  $("tvName").textContent = t.ip ? (t.name || "Samsung TV") : "Ingen TV valgt";
+  $("tvMeta").textContent = t.ip ? [t.model, t.ip].filter(Boolean).join(" · ") : "Trykk «Finn TV-er på nettet» for å velge TV.";
+}
+async function selectTv(ip) {
+  const r = await api("/api/tv/select", { ip });
+  if (!r.ok) return toast(r.error || "Fant ikke TV-en");
+  S.tv_info = r.tv; renderTvInfo(); $("tvFound").innerHTML = "";
+  toast("Valgte " + r.tv.name + " – godta tilkoblingen på TV-en hvis den spør");
+}
+$("tvScan").onclick = async () => {
+  $("tvScanMsg").textContent = "Leter … (tar noen sekunder)"; $("tvFound").innerHTML = "";
+  const list = await api("/api/tvs/discover").catch(() => []);
+  $("tvScanMsg").textContent = list.length ? `Fant ${list.length}` : "Fant ingen – er TV-en på?";
+  $("tvFound").innerHTML = list.map(t => `<div class="calrow"><div class="cname"><b>${escH(t.name)}</b>
+      <small>${escH(t.model)} · ${escH(t.ip)}${t.frame ? " · The Frame" : ""}</small></div>
+      <button class="btn" data-pick="${escH(t.ip)}">${(S.tv_info || {}).ip === t.ip ? "Valgt" : "Velg"}</button></div>`).join("");
+};
+$("tvFound").addEventListener("click", e => { const b = e.target.closest("[data-pick]"); if (b) selectTv(b.dataset.pick); });
+$("tvIpBtn").onclick = () => $("tvIp").value.trim() && selectTv($("tvIp").value.trim());
+
+// ---------- tilstedeværelse
+function renderPresence() {
+  const pr = S.settings.presence || {}, opts = S.presence_options || [], sel = pr.entities || [];
+  $("presEnabled").checked = !!pr.enabled;
+  $("presOff").value = String(pr.off_minutes || 15);
+  $("presOn").checked = pr.turn_on !== false; $("presOffEn").checked = pr.turn_off !== false;
+  const kind = { occupancy: "tilstedeværelse", presence: "tilstedeværelse", motion: "bevegelse", person: "person (hjemme/borte)", telefon: "telefon (hjemme/borte)" };
+  $("presList").innerHTML = opts.length ? opts.map(o => `<div class="calrow ${sel.includes(o.id) ? "" : "off"}">
+      <div class="cname"><b>${escH(o.name)}</b><small>${kind[o.kind] || o.kind} · nå: ${o.state === "on" ? "noen der" : o.state === "off" ? "tomt" : o.state === "home" ? "hjemme" : o.state === "not_home" ? "borte" : escH(o.state)}</small></div>
+      <span class="sw"><input type="checkbox" data-pres="${escH(o.id)}" ${sel.includes(o.id) ? "checked" : ""}><span></span></span></div>`).join("")
+    : `<div class="emptycal">Fant ingen tilstedeværelse- eller bevegelsessensorer i Home Assistant.</div>`;
+  const st = S.presence_state;
+  $("presStatus").textContent = !pr.enabled ? "Av – TV-en styres ikke av sensorer."
+    : !sel.length ? "Velg minst én sensor under."
+    : st ? (st.present ? "Noen er i rommet nå." : "Rommet er tomt – sist sett " + new Date(st.last_seen * 1000).toLocaleTimeString("no-NO", { hour: "2-digit", minute: "2-digit" }) + ".")
+    : "Starter …";
+}
+async function savePresence(patch) {
+  const r = await api("/api/settings", { presence: patch });
+  if (!r.ok) return toast(r.error || "Feil");
+  S.settings = r.settings; renderPresence(); toast("Lagret");
+}
+$("presCard").addEventListener("change", e => {
+  e.stopPropagation();
+  const el = e.target;
+  if (el.id === "presEnabled") return savePresence({ enabled: el.checked });
+  if (el.id === "presOff") return savePresence({ off_minutes: +el.value });
+  if (el.id === "presOn") return savePresence({ turn_on: el.checked });
+  if (el.id === "presOffEn") return savePresence({ turn_off: el.checked });
+  if (el.dataset.pres) {
+    const sel = new Set(S.settings.presence?.entities || []);
+    el.checked ? sel.add(el.dataset.pres) : sel.delete(el.dataset.pres);
+    return savePresence({ entities: [...sel] });
+  }
+});
+
+// ---------- kameraer
+function renderCameras() {
+  const opts = S.camera_options || [], sel = S.camera_selected || [];
+  const ordered = [...sel.map(id => opts.find(o => o.id === id)).filter(Boolean), ...opts.filter(o => !sel.includes(o.id))];
+  $("camList").innerHTML = ordered.length ? ordered.map(o => {
+    const n = sel.indexOf(o.id);
+    return `<div class="calrow ${n < 0 ? "off" : ""}">
+      <div class="cname"><b>${escH(o.name)}</b><small>${escH(o.source)}${n >= 0 ? ` · nr. ${n + 1}` : ""}</small></div>
+      ${n > 0 ? `<button class="icon" data-camup="${escH(o.id)}" title="Flytt opp">↑</button>` : ""}
+      <span class="sw"><input type="checkbox" data-cam="${escH(o.id)}" ${n >= 0 ? "checked" : ""}><span></span></span>
+    </div>`; }).join("")
+    : `<div class="emptycal">Fant ingen kameraer i Home Assistant.</div>`;
+  const s = S.settings, hints = [];
+  if (!s.show.cameras) hints.push("«Kamera» er slått av under Hva vises.");
+  if (s.layout === "minimal") hints.push("Minimal-layouten viser ikke kamera.");
+  if (s.layout === "sentrert") hints.push("Sentrert klokke viser bare det første kameraet.");
+  hints.push("Maks 4 kameraer. Bildet oppdateres hvert minutt (Art Mode viser bare stillbilder).");
+  $("camHint").innerHTML = hints.map(h => `<span>${h}</span>`).join(" ");
+}
+async function saveCams(ids) {
+  const r = await api("/api/settings", { camera_ids: ids });
+  if (!r.ok) return toast(r.error || "Feil");
+  S.settings = r.settings; S.camera_selected = ids; renderCameras(); reloadPreview(); toast("Kameravalg lagret");
+}
+$("camCard").addEventListener("change", e => {
+  const id = e.target.dataset.cam; if (!id) return;
+  e.stopPropagation();
+  let sel = [...(S.camera_selected || [])].filter(x => x !== id);
+  if (e.target.checked) { if (sel.length >= 4) { e.target.checked = false; return toast("Maks 4 kameraer"); } sel.push(id); }
+  saveCams(sel);
+});
+$("camCard").addEventListener("click", e => {
+  const up = e.target.closest("[data-camup]"); if (!up) return;
+  const sel = [...S.camera_selected], i = sel.indexOf(up.dataset.camup);
+  [sel[i - 1], sel[i]] = [sel[i], sel[i - 1]]; saveCams(sel);
+});
+
+// ---------- kalendere
+const CAL_COLORS = ["#e8b04b", "#d9663a", "#c0392b", "#d6589b", "#8e6cd8", "#3d7fd9", "#2fa7a0", "#5aa04a", "#8d6e63", "#9e9e9e"];
+let calColor = CAL_COLORS[0];
+
+function renderCalendars() {
+  const list = S.calendar_list || [];
+  $("calList").innerHTML = list.length ? list.map((c, i) => `
+    <div class="calrow ${c.visible ? "" : "off"}" data-cal="${c.id}">
+      <label class="cdot" style="background:${c.color}" title="Endre farge"><input type="color" value="${c.color}" data-calcolor></label>
+      <div class="cname"><input value="${escH(c.name)}" data-calname maxlength="40"><small>${escH(c.url_hint)}</small></div>
+      <button class="icon" data-calmove="up" title="Flytt opp" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button class="icon" data-calmove="down" title="Flytt ned" ${i === list.length - 1 ? "disabled" : ""}>↓</button>
+      <span class="sw" title="Vis på TV"><input type="checkbox" data-calvis ${c.visible ? "checked" : ""}><span></span></span>
+      <button class="icon" data-caldel title="Fjern">✕</button>
+    </div>`).join("")
+    : `<div class="emptycal">Ingen kalendere ennå. Trykk «+ Legg til» for å legge til den første.</div>`;
+}
+function renderCalColors() {
+  $("calColors").innerHTML = CAL_COLORS.map(c => `<button style="background:${c}" class="${c === calColor ? "sel" : ""}" data-calpick="${c}"></button>`).join("");
+}
+async function calAction(body, msg) {
+  const r = await api("/api/calendars", body);
+  if (!r.ok) return toast(r.error || "Feil"), false;
+  S.calendar_list = r.calendar_list; renderCalendars(); reloadPreview(); if (msg) toast(msg);
+  return true;
+}
+function openCalForm(open) {
+  $("calForm").hidden = !open; $("calAddBtn").hidden = open;
+  if (open) {
+    $("calUrl").value = ""; $("calName").value = ""; $("calTestMsg").textContent = "";
+    const used = (S.calendar_list || []).map(c => c.color);
+    calColor = CAL_COLORS.find(c => !used.includes(c)) || CAL_COLORS[0];
+    renderCalColors(); $("calUrl").focus();
+  }
+}
+async function testCal() {
+  const url = $("calUrl").value.trim(); if (!url) return false;
+  $("calTestMsg").textContent = "Sjekker lenken …";
+  const r = await api("/api/calendars/test", { ics_url: url });
+  if (!r.ok) { $("calTestMsg").textContent = "⚠️ " + (r.error || "Fungerer ikke"); return false; }
+  $("calTestMsg").textContent = `✓ Fungerer – ${r.upcoming} avtaler de neste 30 dagene`;
+  if (r.name && !$("calName").value) $("calName").value = r.name;
+  return true;
+}
+$("calAddBtn").onclick = () => openCalForm(true);
+$("calCancel").onclick = () => openCalForm(false);
+$("calTest").onclick = testCal;
+$("calUrl").addEventListener("change", testCal);
+$("calSave").onclick = async () => {
+  if (!$("calUrl").value.trim()) return toast("Lim inn iCal-lenken først");
+  if (!(await testCal())) return;
+  if (await calAction({ action: "add", ics_url: $("calUrl").value.trim(), name: $("calName").value.trim() || "Kalender", color: calColor }, "Kalender lagt til"))
+    openCalForm(false);
+};
+$("calCard").addEventListener("click", e => {
+  const pick = e.target.closest("[data-calpick]");
+  if (pick) { calColor = pick.dataset.calpick; renderCalColors(); return; }
+  const row = e.target.closest("[data-cal]"); if (!row) return;
+  const id = row.dataset.cal;
+  if (e.target.closest("[data-caldel]")) {
+    const name = row.querySelector("[data-calname]").value;
+    if (confirm(tr(`Fjerne kalenderen «${name}» fra TV-en?`))) calAction({ action: "remove", id }, "Kalender fjernet");
+  }
+  const mv = e.target.closest("[data-calmove]"); if (mv) calAction({ action: "move", id, dir: mv.dataset.calmove });
+});
+$("calCard").addEventListener("change", e => {
+  const row = e.target.closest("[data-cal]"); if (!row) return;
+  e.stopPropagation();
+  const id = row.dataset.cal;
+  if (e.target.matches("[data-calvis]")) calAction({ action: "update", id, visible: e.target.checked }, e.target.checked ? "Vises på TV-en" : "Skjult fra TV-en");
+  if (e.target.matches("[data-calcolor]")) calAction({ action: "update", id, color: e.target.value }, "Farge endret");
+  if (e.target.matches("[data-calname]")) calAction({ action: "update", id, name: e.target.value }, "Navn endret");
+});
+
+function reloadPreview() { clearTimeout(pvTimer); pvTimer = setTimeout(() => $("pvFrame").contentWindow.location.reload(), 150); }
+
+let locTimer, locHits = [];
+const escH = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+$("locSearch").addEventListener("input", e => {
+  clearTimeout(locTimer);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $("locResults").hidden = true; return; }
+  locTimer = setTimeout(async () => {
+    locHits = await api("/api/geocode?q=" + encodeURIComponent(q)).catch(() => []);
+    if (!Array.isArray(locHits) || !locHits.length) { $("locResults").innerHTML = "<div>Fant ingen steder</div>"; locHits = []; }
+    else $("locResults").innerHTML = locHits.map((h, i) => `<div data-loc="${i}">${escH(h.name)}<small>${escH(h.detail)}</small></div>`).join("");
+    $("locResults").hidden = false;
+  }, 300);
+});
+$("locResults").addEventListener("click", e => {
+  const el = e.target.closest("[data-loc]"); if (!el) return;
+  const h = locHits[+el.dataset.loc];
+  $("locResults").hidden = true; $("locSearch").value = "";
+  save({ location: { name: h.name, lat: h.lat, lon: h.lon } });
+});
+
+function fitPreview() { const w = $("preview").clientWidth; $("pvFrame").style.transform = `scale(${w / 3840})`; }
+new ResizeObserver(fitPreview).observe($("preview"));
+$("pvFrame").src = BASE + "/dashboard";
+
+// ---------- faner
+function showTab(t) {
+  document.querySelectorAll("[data-pane]").forEach(p => p.classList.toggle("on", p.dataset.pane === t));
+  document.querySelectorAll("#maintabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  try { localStorage.setItem("frameTab", t); } catch {}
+}
+$("maintabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) showTab(b.dataset.tab); });
+let startTab = "utseende"; try { startTab = localStorage.getItem("frameTab") || startTab; } catch {}
+showTab(startTab);
+load(); setInterval(poll, 15000);
+</script>
+</body>
+</html>
