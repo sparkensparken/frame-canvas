@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.5
+- Clock accuracy: each frame is prepared just before the minute changes and shown exactly on the minute (previously the clock could lag up to ~1.5 min).
+- Backgrounds are fetched in the background and never delay the frame. If the chosen photo source is down, Frame Canvas falls back to another source and retries after 10 minutes instead of logging a timeout every minute.
+
 ## 1.0.4
 - Centered layout: the weather panel is now centered (temperature, description and forecast) instead of hugging the right edge.
 

@@ -609,40 +609,97 @@ def image_brightness(raw: bytes) -> dict:
         return {"mean": 128, "max": 128}
 
 
+BG_FALLBACK = {"natur": ["bing", "kunst"], "kunst": ["bing", "natur"], "bing": ["natur", "kunst"]}
+BG_RETRY = 600  # sekunder før en kilde/et bilde som feilet prøves igjen
+_bg_failed: dict[str, float] = {}     # url eller "list:<kilde>" -> tidspunkt den kan prøves igjen
+_bg_state = {"busy": False, "retry_key": None, "retry_at": 0.0}
+_bg_lock = threading.Lock()
+
+
+def _bg_slot(bg: dict) -> tuple:
+    """Which image the settings ask for right now (source + time bucket + offset)."""
+    bucket = int(time.time() // (60 * max(1, int(bg.get("interval_minutes", 30)))))
+    return (bg.get("source", "none"), bucket, int(bg.get("offset", 0)))
+
+
+def _bg_download(url: str) -> bytes:
+    raw = http_get(url, timeout=15)
+    if not raw.startswith(b"\xff\xd8"):
+        raise RuntimeError("bildekilden ga ikke et JPEG-bilde")
+    if len(raw) > 1_500_000 and shutil.which("ffmpeg"):  # skaler store bilder ned til 4K én gang
+        r = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-vf", "scale='min(3840,iw)':-2",
+                            "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "pipe:1"],
+                           input=raw, capture_output=True, timeout=60)
+        if r.returncode == 0 and r.stdout.startswith(b"\xff\xd8"):
+            raw = r.stdout
+    return raw
+
+
+def _bg_fetch(slot: tuple) -> None:
+    """Fetch the image for a slot in the background. Tries the chosen source first, then the others,
+    so a site that is down never leaves the TV without a background or delays the clock."""
+    source, bucket, offset = slot
+    errors = []
+    try:
+        for src in [source] + BG_FALLBACK.get(source, []):
+            if _bg_failed.get("list:" + src, 0) > time.time():
+                continue
+            try:
+                items = _bg_list(src)
+            except Exception as e:  # noqa: BLE001
+                _bg_failed["list:" + src] = time.time() + BG_RETRY
+                errors.append(f"{src}: {e}")
+                continue
+            if not items:
+                continue
+            start = (bucket * 7919 + offset) % len(items)  # «tilfeldig» men stabil rekkefølge
+            for k in range(3):  # prøv inntil tre bilder fra samme kilde
+                it = items[(start + k) % len(items)]
+                if _bg_failed.get(it["url"], 0) > time.time():
+                    continue
+                try:
+                    raw = _bg_download(it["url"])
+                except Exception as e:  # noqa: BLE001
+                    _bg_failed[it["url"]] = time.time() + BG_RETRY
+                    errors.append(f"{src}: {e}")
+                    if "timed out" in str(e) or "timeout" in str(e).lower():
+                        break  # hele kilden henger – gå videre til neste kilde
+                    continue
+                _bg_current.update(key=slot, data=base64.b64encode(raw).decode(), credit=it["credit"],
+                                   brightness=image_brightness(raw))
+                if src != source:
+                    log.info("Bakgrunn: %s svarer ikke – bruker %s i mellomtiden", source, src)
+                    _bg_state.update(retry_key=slot, retry_at=time.time() + BG_RETRY)
+                else:
+                    _bg_state.update(retry_key=None)
+                return
+        log.warning("Bakgrunnsbilde feilet (prøver igjen om %s min): %s", BG_RETRY // 60, "; ".join(errors)[:300])
+        _bg_state.update(retry_key=slot, retry_at=time.time() + BG_RETRY)
+    finally:
+        _bg_state["busy"] = False
+
+
 def get_background(settings: dict) -> dict | None:
     bg = settings.get("background") or {}
-    source = bg.get("source", "none")
-    if source == "none":
+    if bg.get("source", "none") == "none":
         return None
-    try:
-        items = _bg_list(source)
-        if not items:
-            return None
-        bucket = int(time.time() // (60 * int(bg.get("interval_minutes", 30))))
-        idx = (bucket * 7919 + int(bg.get("offset", 0))) % len(items)  # «tilfeldig» men stabil rekkefølge
-        key = (source, items[idx]["url"])
-        if _bg_current["key"] != key:
-            raw = http_get(items[idx]["url"], timeout=25)
-            if not raw.startswith(b"\xff\xd8"):
-                raise RuntimeError("bildekilden ga ikke et JPEG-bilde")
-            if len(raw) > 1_500_000 and shutil.which("ffmpeg"):  # skaler store bilder ned til 4K én gang
-                r = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", "pipe:0", "-vf", "scale='min(3840,iw)':-2",
-                                    "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "pipe:1"],
-                                   input=raw, capture_output=True, timeout=60)
-                if r.returncode == 0 and r.stdout.startswith(b"\xff\xd8"):
-                    raw = r.stdout
-            _bg_current.update(key=key, data=base64.b64encode(raw).decode(), credit=items[idx]["credit"],
-                               brightness=image_brightness(raw))
-        return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55)),
-                "brightness": _bg_current.get("brightness") or {"mean": 128, "max": 128},
-                "panels": bg.get("panels", "auto")}
-    except Exception as e:  # noqa: BLE001
-        log.warning("Bakgrunnsbilde feilet: %s", e)
-        if _bg_current["data"]:
-            return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55)),
-                    "brightness": _bg_current.get("brightness") or {"mean": 128, "max": 128},
-                    "panels": bg.get("panels", "auto")}
+    slot = _bg_slot(bg)
+    want = _bg_current["key"] != slot or (_bg_state["retry_key"] == slot and time.time() > _bg_state["retry_at"])
+    if _bg_state["retry_key"] == slot and time.time() <= _bg_state["retry_at"]:
+        want = False  # nylig feilet / bruker reserve – ikke mas hvert minutt
+    if want:
+        with _bg_lock:
+            if not _bg_state["busy"]:
+                _bg_state["busy"] = True
+                th = threading.Thread(target=_bg_fetch, args=(slot,), daemon=True)
+                th.start()
+                if not _bg_current["data"]:
+                    th.join(20)  # første bilde etter oppstart: vent litt, ellers tegnes uten bakgrunn
+    if not _bg_current["data"]:
         return None
+    return {"image": _bg_current["data"], "credit": _bg_current["credit"], "dim": int(bg.get("dim", 55)),
+            "brightness": _bg_current.get("brightness") or {"mean": 128, "max": 128},
+            "panels": bg.get("panels", "auto")}
 
 
 def public_settings(settings: dict) -> dict:
@@ -844,19 +901,30 @@ class TV:
             with self.lock:
                 self._conn().send_key("KEY_POWER")
 
-    def push(self, image: Path, only_when_art_mode: bool) -> bool:
+    def push(self, image: Path, only_when_art_mode: bool, show_at: float | None = None) -> bool:
+        """Upload the image, then show it at `show_at` (epoch seconds) so the clock flips on the minute."""
         with self.lock:
             art = self.art()
             if only_when_art_mode and art.get_artmode() != "on":
                 return False
-            state = load_state()
             matte = self.cfg.get("matte", "none")
             cid = art.upload(image.read_bytes(), file_type=image.suffix[1:], matte=matte, portrait_matte=matte)
+            state = load_state()
+            save_state({**state, "uploaded": state["uploaded"] + [cid]})  # husk den, så den ryddes uansett
+            self.uploaded_at = time.time()
+        if show_at:
+            delay = show_at - time.time()
+            if 0 < delay < 60:
+                time.sleep(delay)
+        with self.lock:
+            art = self.art()
             art.select_image(cid, show=True)
+            state = load_state()
             old = [c for c in state["uploaded"] if c != cid]
             keep, fails = self._delete_each(art, old, state.get("fails", {}))
             save_state({"uploaded": keep + [cid], "fails": fails})
-            log.info("Viser %s", cid)
+            late = time.time() - show_at if show_at else 0
+            log.info("Viser %s%s", cid, f" ({late:+.0f} s)" if show_at and abs(late) >= 3 else "")
             return True
 
     @staticmethod
@@ -1390,10 +1458,11 @@ class PersistentBrowser:
 _browser: PersistentBrowser | None = None
 
 
-def render(cfg: dict, out: Path) -> Path:
-    """Render the dashboard to a 4K JPEG – via the persistent browser, falling back to a one-off Chromium."""
+def render(cfg: dict, out: Path, at: float | None = None) -> Path:
+    """Render the dashboard to a 4K JPEG – via the persistent browser, falling back to a one-off Chromium.
+    `at` (epoch seconds) is the moment the image will be shown; the clock on the page uses it."""
     global _browser
-    url = f"http://127.0.0.1:{cfg.get('server_port', 8765)}/"
+    url = f"http://127.0.0.1:{cfg.get('server_port', 8765)}/" + (f"?t={int(at * 1000)}" if at else "")
     if out.suffix.lower() in (".jpg", ".jpeg") and not cfg.get("oneshot_browser"):
         try:
             if _browser is None:
@@ -1525,17 +1594,25 @@ def cmd_run(cfg: dict) -> None:
     threading.Thread(target=presence_loop, args=(app,), daemon=True).start()
     port = cfg.get("server_port", 8765)
     log.info("Styringsside: http://%s:%s/control", local_ip(), port)
+    lead = 20.0  # sekunder før minuttskiftet vi starter; justeres etter hvor lang tid en runde faktisk tar
     while True:
         s = app.settings.get()
-        interval = s.get("interval_seconds", 60)
+        interval = int(s.get("interval_seconds", 60))
+        aligned = interval % 60 == 0
         if s.get("enabled", True):
+            t0 = time.time()
+            # Bildet skal vise minuttet det står på skjermen i: lages litt før, vises på minuttet
+            show_at = (t0 // 60 + (1 if 60 - t0 % 60 <= lead + 5 else 0)) * 60 if aligned else None
             try:
-                img = render(cfg, PREVIEW_PATH)
+                img = render(cfg, PREVIEW_PATH, show_at)
                 # Bare når TV-en er helt på – et bildebytte i standby vekker TV-en, som så slår seg av igjen
                 power = app.tv.power_state()
                 if power == "on":
-                    if app.tv.push(img, cfg.get("only_when_art_mode", True)):
+                    if app.tv.push(img, cfg.get("only_when_art_mode", True), show_at):
                         app.last_push = time.time()
+                        if show_at and getattr(app.tv, "uploaded_at", 0) > t0:
+                            # tid fra start til bildet lå klart på TV-en, + litt margin
+                            lead = min(45.0, max(10.0, app.tv.uploaded_at - t0 + 5))
                 if power != getattr(app, "_last_power", None):
                     log.info("TV-ens strømstatus: %s%s", power, " – sender ikke bilder" if power != "on" else "")
                     app._last_power = power
@@ -1543,8 +1620,13 @@ def cmd_run(cfg: dict) -> None:
             except Exception as e:  # noqa: BLE001
                 app.last_error = str(e)
                 log.warning("Feil: %s", e)
-        # Align to whole minutes so the clock is as fresh as possible
-        wait = interval - (time.time() % 60) - 2 if interval % 60 == 0 else interval
+        if aligned:
+            nxt = (time.time() // 60 + interval // 60) * 60  # neste visningsminutt
+            if nxt - time.time() < lead:
+                nxt += 60
+            wait = nxt - lead - time.time()
+        else:
+            wait = interval
         app.wakeup.wait(max(5, wait))
         app.wakeup.clear()
 
